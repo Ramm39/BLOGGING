@@ -434,6 +434,42 @@ a:hover {
   transform: translateY(-50%);
   color: var(--text-dim);
   pointer-events: none;
+  font-size: 1.1rem;
+}
+
+.category-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0 auto 1rem;
+  max-width: 920px;
+}
+
+.filter-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+.filter-btn:hover {
+  color: var(--text-main);
+  border-color: var(--border-color-hover);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.filter-btn.active {
+  color: #fff;
+  background: var(--accent-gradient);
+  border-color: transparent;
+  box-shadow: var(--shadow-glow);
 }
 
 /* --------------------------------------------------------------------------
@@ -694,6 +730,71 @@ a:hover {
   margin: 2rem 0;
   font-style: italic;
   color: var(--text-main);
+}
+
+/* Compatibility styles for generated article pages */
+.card-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-full);
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  margin-bottom: 1rem;
+}
+
+.article-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 2rem;
+}
+
+.content-page .article-header h1 {
+  margin-bottom: 1rem;
+}
+
+.article-section {
+  margin-bottom: 2rem;
+}
+
+.reflection-card {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(8px);
+}
+
+.reflection-card h4 {
+  margin-bottom: 0.75rem;
+  color: var(--text-main);
+}
+
+.article-footer-nav {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--accent-primary);
+}
+
+.btn-back:hover {
+  color: var(--accent-secondary);
 }
 
 .article-prose code {

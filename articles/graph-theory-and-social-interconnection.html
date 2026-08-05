@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Graph Theory and Social Interconnection: Topological Mapping of Human Relationships — BudhiWorks</title>
+  <meta name="color-scheme" content="dark light">
   <meta name="description" content="Dijkstra's shortest path, centrality metrics, and strongly connected components applied to social network topology and empathy.">
   <link rel="canonical" href="https://budhiworks.com/articles/graph-theory-and-social-interconnection.html">
   <meta property="og:title" content="Graph Theory and Social Interconnection: Topological Mapping of Human Relationships">
@@ -14,30 +15,36 @@
 </head>
 <body>
 
-  <header>
-    <div class="nav-container">
-      <a href="../index.html" class="logo">Budhi<span>Works</span></a>
-      <button class="mobile-nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
-        <span class="hamburger"></span>
-      </button>
-      <nav class="nav-menu">
-        <ul>
-          <li><a href="../index.html">Home</a></li>
-          <li><a href="../about.html">About</a></li>
-          <li><a href="../contact.html">Contact</a></li>
-          <li><a href="../privacy.html">Privacy</a></li>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link">Home</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+          <li><a href="../privacy.html" class="nav-link">Privacy</a></li>
         </ul>
       </nav>
-      <div class="nav-actions">
-        <button id="theme-toggle-btn" class="theme-toggle" aria-label="Toggle Theme">
-          <span class="theme-icon">🌙</span>
-        </button>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
       </div>
     </div>
   </header>
 
-  <main class="container">
-    <article class="content-page article-page">
+
+  <main class="main-content">
+    <div class="container article-container">
+    <article class="content-page article-page article-prose">
       <div class="article-header">
         <div class="card-tag">Computer Science</div>
         <h1>Graph Theory and Social Interconnection: Topological Mapping of Human Relationships</h1>
@@ -151,20 +158,24 @@ print("Cognitive Outcome: " + result)</code></pre>
         <a href="../index.html" class="btn-back">← Back to Articles Index</a>
       </div>
     </article>
+    </div>
   </main>
 
-  <footer>
-    <div class="footer-container">
-      <div>&copy; 2026 BudhiWorks. All rights reserved.</div>
-      <div class="footer-links">
-        <a href="../about.html">About Us</a>
-        <a href="../contact.html">Contact</a>
-        <a href="../privacy.html">Privacy Policy</a>
-        <a href="../terms.html">Terms of Service</a>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-bottom" style="border-top: none; padding-top: 0;">
+        <p>&copy; 2026 BudhiWorks. All rights reserved.</p>
+        <div style="display:flex;gap:1.25rem;flex-wrap:wrap;">
+          <a href="../about.html">About Us</a>
+          <a href="../contact.html">Contact</a>
+          <a href="../privacy.html">Privacy Policy</a>
+          <a href="../terms.html">Terms of Service</a>
+        </div>
       </div>
     </div>
   </footer>
 
-  <script src="../script.js"></script>
+
+  <script src="../script.js" defer></script>
 </body>
 </html>

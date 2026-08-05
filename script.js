@@ -147,22 +147,41 @@ function initContactForm() {
 function initArticleSearch() {
   const searchInput = document.getElementById('articleSearchInput');
   const articleCards = document.querySelectorAll('.article-card');
+  const filterButtons = document.querySelectorAll('.filter-btn');
+  let activeFilter = 'all';
 
-  if (searchInput && articleCards.length > 0) {
-    searchInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase().trim();
+  if (articleCards.length === 0) return;
 
-      articleCards.forEach(card => {
-        const title = card.querySelector('.card-title')?.textContent.toLowerCase() || '';
-        const excerpt = card.querySelector('.card-excerpt')?.textContent.toLowerCase() || '';
-        const category = card.querySelector('.badge')?.textContent.toLowerCase() || '';
+  function applyFilters() {
+    const query = (searchInput?.value || '').toLowerCase().trim();
 
-        if (title.includes(query) || excerpt.includes(query) || category.includes(query)) {
-          card.style.display = 'flex';
-        } else {
-          card.style.display = 'none';
-        }
-      });
+    articleCards.forEach(card => {
+      const title = card.querySelector('.card-title')?.textContent.toLowerCase() || '';
+      const excerpt = card.querySelector('.card-excerpt')?.textContent.toLowerCase() || '';
+      const category = card.getAttribute('data-category') || '';
+      const categoryLabel = card.querySelector('.badge')?.textContent.toLowerCase() || '';
+      const matchesFilter = activeFilter === 'all' || category === activeFilter;
+      const matchesQuery =
+        !query ||
+        title.includes(query) ||
+        excerpt.includes(query) ||
+        categoryLabel.includes(query) ||
+        category.toLowerCase().includes(query);
+
+      card.style.display = matchesFilter && matchesQuery ? 'flex' : 'none';
     });
   }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', applyFilters);
+  }
+
+  filterButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = btn.getAttribute('data-filter') || 'all';
+      applyFilters();
+    });
+  });
 }
