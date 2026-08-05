@@ -1,0 +1,5 @@
+# BudhiWorks Robots.txt
+User-agent: *
+Allow: /
+
+Sitemap: https://budhiworks.com/sitemap.xml

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building Lightning-Fast Web Applications with Modern Browser APIs - BudhiWorks</title>
+  <meta name="description" content="A practical guide to Core Web Vitals optimization, native content-visibility, LCP image fetch priority, and CSS container queries for ultra-fast web apps.">
+  <link rel="canonical" href="https://budhiworks.com/articles/modern-web-performance-guide.html">
+  <meta name="color-scheme" content="dark light">
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Building Lightning-Fast Web Applications with Modern Browser APIs">
+  <meta property="og:description" content="Optimize LCP, INP, and rendering pipelines using cutting-edge browser capabilities.">
+  <meta property="og:url" content="https://budhiworks.com/articles/modern-web-performance-guide.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link">Home</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+          <li><a href="../privacy.html" class="nav-link">Privacy Policy</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="container article-container">
+      
+      <article>
+        <header class="article-header">
+          <div class="article-header-meta">
+            <span class="badge badge-emerald">Web Performance</span>
+            <span class="card-meta">Published: August 5, 2026 • 6 min read</span>
+          </div>
+          <h1 class="article-headline">Building Lightning-Fast Web Applications with Modern Browser APIs</h1>
+          <p class="article-lead">
+            Delivering instant page loads and silky smooth interactions requires leverage of native browser features rather than heavy JavaScript frameworks. Learn how to achieve sub-second LCP and single-digit INP scores.
+          </p>
+
+          <div class="article-author-bar">
+            <div class="author-details">
+              <div class="author-avatar-large">BW</div>
+              <div>
+                <div class="author-name">BudhiWorks Editorial Team</div>
+                <div class="author-role">Web Performance & Core Web Vitals Practice</div>
+              </div>
+            </div>
+            <a href="../index.html#articles" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">&larr; Back to Articles</a>
+          </div>
+        </header>
+
+        <div class="article-prose">
+          
+          <h2>1. Optimizing LCP with Fetch Priority Hints</h2>
+          <p>
+            Largest Contentful Paint (LCP) measures when the largest visual block above the fold finishes rendering. Historically, key hero images or fonts were discovered late during HTML parsing.
+          </p>
+          <p>
+            By using <code>fetchpriority="high"</code> and inline preloading, we signal to the browser's network stack to fetch critical hero assets before non-essential scripts:
+          </p>
+
+<pre><code>&lt;!-- Preload hero image with explicit high priority --&gt;
+&lt;link rel="preload" fetchpriority="high" as="image" href="hero-banner.webp" type="image/webp" /&gt;
+
+&lt;!-- Image element tag optimization --&gt;
+&lt;img src="hero-banner.webp" alt="BudhiWorks Hero" fetchpriority="high" loading="eager" decoding="async" /&gt;
+</code></pre>
+
+          <h2>2. Deferring Off-Screen Rendering with <code>content-visibility</code></h2>
+          <p>
+            Long, content-heavy articles or product grids can choke the browser's style and layout calculations. The CSS property <code>content-visibility: auto</code> allows the browser to skip layout and rendering for elements outside the viewport until the user scrolls near them:
+          </p>
+
+<pre><code>/* Defer rendering of offscreen article cards */
+.article-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 320px; /* Provides layout placeholder to prevent scrollbar jump */
+}
+</code></pre>
+
+          <div class="callout-box">
+            <div class="callout-title">⚡ Performance Gain Benchmark</div>
+            <p style="margin-bottom: 0;">
+              Implementing <code>content-visibility: auto</code> on long lists typically reduces initial layout calculation time by up to <strong>70%</strong> on low-powered mobile devices without breaking native browser text search ("Find in Page").
+            </p>
+          </div>
+
+          <h2>3. Mastering Interaction to Next Paint (INP)</h2>
+          <p>
+            INP measures overall page responsiveness to user actions (clicks, taps, keypresses). Long-running synchronous JavaScript tasks on the main thread cause perceptible UI lag.
+          </p>
+          <ul>
+            <li>Break long tasks using <code>scheduler.yield()</code> or <code>requestIdleCallback()</code>.</li>
+            <li>Use CSS <code>touch-action: manipulation</code> to eliminate mobile double-tap zoom delays.</li>
+            <li>Avoid excessive layout thrashing caused by reading DOM properties inside write loops.</li>
+          </ul>
+
+          <h2>4. Summary Checklist for High Performance</h2>
+          <ol>
+            <li>Serve modern image formats (WebP / AVIF) with explicit <code>width</code> and <code>height</code> attributes.</li>
+            <li>Set <code>color-scheme: dark light</code> at top level to let the browser style native UI controls immediately.</li>
+            <li>Minimize blocking JavaScript and rely on native browser APIs wherever possible.</li>
+          </ol>
+
+        </div>
+      </article>
+
+      <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="future-of-ai-engineering-2026.html" class="btn btn-secondary">&larr; Previous: AI Engineering</a>
+        <a href="mastering-css-glassmorphism.html" class="btn btn-primary">Next: CSS Glassmorphism &rarr;</a>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>BudhiWorks is a technical engineering publication dedicated to modern web design, artificial intelligence, software architecture, and system scalability.</p>
+        </div>
+        <div>
+          <h4 class="footer-column-title">Navigation</h4>
+          <ul class="footer-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="../about.html">About Us</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer-column-title">Legal</h4>
+          <ul class="footer-links">
+            <li><a href="../privacy.html">Privacy Policy</a></li>
+            <li><a href="../terms.html">Terms of Service</a></li>
+            <li><a href="../sitemap.xml">Sitemap</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer-column-title">Topics</h4>
+          <ul class="footer-links">
+            <li><a href="../index.html#articles">AI Engineering</a></li>
+            <li><a href="../index.html#articles">Web Performance</a></li>
+            <li><a href="../index.html#articles">CSS & UI Design</a></li>
+            <li><a href="../index.html#articles">Cloud Architecture</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. All rights reserved.</p>
+        <p>Designed with high-performance dark glassmorphism standards.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
