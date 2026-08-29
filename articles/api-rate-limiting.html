@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Rate Limiting with Token Buckets and Redis: What Actually Works — BudhiWorks</title>
+  <meta name="description" content="How I ship token-bucket rate limits with Redis, pick keys and limits, and avoid the mistakes that take APIs down under burst traffic.">
+  <link rel="canonical" href="https://budhiworks.com/articles/api-rate-limiting.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="API Rate Limiting with Token Buckets and Redis: What Actually Works — BudhiWorks">
+  <meta property="og:description" content="How I ship token-bucket rate limits with Redis, pick keys and limits, and avoid the mistakes that take APIs down under burst traffic.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/api-rate-limiting.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="API rate limiting, token bucket, Redis rate limit, Express middleware, sliding window, 429 Too Many Requests">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-08-02">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Backend</span>
+          <h1 class="article-title">API Rate Limiting with Token Buckets and Redis: What Actually Works</h1>
+          <p class="article-lead">Rate limiting is not a nice-to-have once bots or a buggy client find your public endpoints. Here is the token-bucket design I use with Redis, including the failure modes I hit in production.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-08-02">August 2, 2026</time> &bull; 8 min read &bull; ~1189 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Put rate limits on every public endpoint before launch, not after an incident.</li>
+            <li>Prefer Redis-backed token buckets for multi-instance APIs; keep consume/refill atomic.</li>
+            <li>Key by user id when authenticated; use IP only as a fallback for anonymous traffic.</li>
+            <li>Return 429 with Retry-After and remaining-limit headers clients can honor.</li>
+            <li>Decide fail-open vs fail-closed per route class when Redis is unavailable.</li>
+            <li>Load-test with many subjects—shared staging keys hide real aggregate load.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>Why I finally stopped shipping APIs without limits</h2>
+          <p>The first paid API I put on the public internet had auth, validation, and careful indexes. It did not have rate limits. A partner script with a retry loop stuck on a 500 burned through our MongoDB connection pool in under four minutes. CPU looked fine. Latency exploded. Customers saw timeouts.</p>
+          <p>That incident taught me a blunt rule: every externally reachable endpoint needs a budget. Not just auth. Auth tells you who is calling. Rate limits tell you how hard they can hit you. Without both, one bad client or leaked key can flatten everyone else.</p>
+          <p>I now treat rate limiting as part of the default middleware stack, same as CORS and request logging. The algorithm matters less than having something consistent, observable, and hard to bypass by opening a second process.</p>
+          <p>If you run multi-tenant SaaS, rate limits are part of fairness between tenants. Without them, one noisy customer becomes everyone else&#x27;s latency problem—and your status page.</p>
+
+          <h2>Token bucket vs fixed window vs sliding window</h2>
+          <p>Fixed windows are simple: allow N requests per minute, reset on the clock. They fail at the boundary. A client can send N requests at 00:59 and N more at 01:00 and get 2N in two seconds. I have watched scrapers do exactly that against marketing APIs.</p>
+          <p>Sliding windows fix the burst at the cost of more bookkeeping. Token buckets sit in a sweet spot for APIs: you refill tokens at a steady rate, and you can allow short bursts up to a capacity. That matches how real UIs behave—idle, then a flurry of clicks.</p>
+          <p>I default to token bucket for product APIs. I use a strict fixed or sliding window only when a contract literally says “100 requests per calendar minute” and auditors care about the wall clock.</p>
+          <ul>
+            <li>Fixed window: easy, cheap, bursty at boundaries</li>
+            <li>Sliding window: smoother, more Redis ops or memory</li>
+            <li>Token bucket: burst-friendly, good for interactive clients</li>
+          </ul>
+
+          <h2>Redis-backed token bucket in Node</h2>
+          <p>In-memory maps work on a single Node process and fall apart behind a load balancer. Redis is the shared counter I trust. The pattern below uses a small Lua script so refill and consume are atomic. Without atomicity you under-count under concurrency and clients sneak past the limit.</p>
+          <p>I key by authenticated user id when present, otherwise by IP plus route group. Never key only by IP for logged-in APIs—NAT and mobile carriers share addresses and you will punish the wrong people.</p>
+          <pre><code>const REDIS_SCRIPT = `
+local key = KEYS[1]
+local capacity = tonumber(ARGV[1])
+local refill_per_ms = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local cost = tonumber(ARGV[4])
+
+local data = redis.call(&#x27;HMGET&#x27;, key, &#x27;tokens&#x27;, &#x27;ts&#x27;)
+local tokens = tonumber(data[1])
+local ts = tonumber(data[2])
+
+if tokens == nil then
+  tokens = capacity
+  ts = now
+end
+
+local elapsed = math.max(0, now - ts)
+tokens = math.min(capacity, tokens + elapsed * refill_per_ms)
+
+if tokens &lt; cost then
+  redis.call(&#x27;HMSET&#x27;, key, &#x27;tokens&#x27;, tokens, &#x27;ts&#x27;, now)
+  redis.call(&#x27;PEXPIRE&#x27;, key, math.ceil(capacity / refill_per_ms))
+  return {0, tokens}
+end
+
+tokens = tokens - cost
+redis.call(&#x27;HMSET&#x27;, key, &#x27;tokens&#x27;, tokens, &#x27;ts&#x27;, now)
+redis.call(&#x27;PEXPIRE&#x27;, key, math.ceil(capacity / refill_per_ms))
+return {1, tokens}
+`;
+
+async function takeToken(redis, key, { capacity, refillPerSec, cost = 1 }) {
+  const now = Date.now();
+  const refillPerMs = refillPerSec / 1000;
+  const [allowed, remaining] = await redis.eval(
+    REDIS_SCRIPT, 1, key, capacity, refillPerMs, now, cost
+  );
+  return { allowed: allowed === 1, remaining: Number(remaining) };
+}</code></pre>
+
+          <h2>Wiring it as Express middleware</h2>
+          <p>I keep limits per route class, not one global number. Auth login stays tight. Read-heavy list endpoints get more headroom. Expensive report generation costs multiple tokens so one call counts like five cheap GETs.</p>
+          <p>Always return 429 with Retry-After when you can estimate it. Clients that respect the header stop hammering. Also emit RateLimit-Remaining style headers so partner integrations can back off before they fail.</p>
+          <p>I unit-test middleware with a fake Redis that records eval calls. That catches key shape bugs before load tests.</p>
+          <pre><code>function rateLimit({ name, capacity, refillPerSec, cost = 1 }) {
+  return async (req, res, next) =&gt; {
+    const subject = req.user?.id || req.ip;
+    const key = `rl:${name}:${subject}`;
+    try {
+      const result = await takeToken(redis, key, { capacity, refillPerSec, cost });
+      res.setHeader(&#x27;X-RateLimit-Limit&#x27;, String(capacity));
+      res.setHeader(&#x27;X-RateLimit-Remaining&#x27;, String(Math.floor(result.remaining)));
+      if (!result.allowed) {
+        res.setHeader(&#x27;Retry-After&#x27;, &#x27;1&#x27;);
+        return res.status(429).json({ error: &#x27;rate_limit_exceeded&#x27; });
+      }
+      return next();
+    } catch (err) {
+      // Fail open or closed? See next section.
+      console.error(&#x27;rate limit redis error&#x27;, err);
+      return next();
+    }
+  };
+}
+
+app.post(&#x27;/auth/login&#x27;, rateLimit({ name: &#x27;login&#x27;, capacity: 10, refillPerSec: 0.2 }), loginHandler);
+app.get(&#x27;/api/items&#x27;, rateLimit({ name: &#x27;items&#x27;, capacity: 120, refillPerSec: 2 }), listItems);</code></pre>
+
+          <h2>Fail open, fail closed, and the Redis outage</h2>
+          <p>When Redis blips, you choose: fail open (serve traffic, lose protection) or fail closed (reject everyone). Early on I failed open and a Redis restart coincided with a crawler spike. We stayed up for healthy users but the crawler enjoyed unrestricted access for three minutes.</p>
+          <p>For login, password reset, and anything billing-related I now fail closed with a clear 503. For low-risk public GETs I fail open and page ops. Document the choice. Do not leave it as an accidental catch that always calls next().</p>
+          <p>Also put a local circuit breaker around Redis so a dead cluster does not add 200ms of timeout latency to every request while Node waits on the client.</p>
+
+          <h2>Testing and the mistakes I still see</h2>
+          <p>Unit-test the Lua script with concurrent callers. I use a small Node script that fires 200 parallel requests against a local Redis and asserts the total allowed count stays within capacity plus a tiny float tolerance.</p>
+          <p>Load-test with realistic keys. A limit of 100/min “works” in staging when everyone shares one test user and fails in production when each user has their own bucket and aggregate load is higher.</p>
+          <ul>
+            <li>Do not rate-limit health checks on the same key as user traffic</li>
+            <li>Separate anonymous and authenticated buckets</li>
+            <li>Log 429s with route and subject hash, not raw tokens</li>
+            <li>Watch p95 Redis latency—slow rate limits become your new bottleneck</li>
+            <li>Document partner-facing limits in the API docs before they guess</li>
+          </ul>
+
+          <h2>What I ship by default now</h2>
+          <p>Token bucket in Redis, atomic Lua, per-route profiles, Retry-After on 429, and an explicit fail-open/fail-closed policy. That stack has survived partner bursts, leaked keys, and one very enthusiastic QA script.</p>
+          <p>Start stricter than you think, then raise limits with data. Raising a limit is a config change. Cleaning up after an unbounded endpoint is an incident.</p>
+
+          <h2>Choosing numbers that survive contact with users</h2>
+          <p>Limits look scientific in a design doc and arbitrary in production. I start from a capacity estimate: peak legitimate RPS for a single user or API key, times a safety factor of three, then round to something explainable in docs. Login might be 5 attempts per minute. A mobile app sync endpoint might be 60 per minute with a burst of 20.</p>
+          <p>I also cost expensive routes higher. A PDF export that hits the database and an object store might cost 10 tokens while a health-style metadata GET costs 1. That keeps the same bucket model without inventing a second limiter.</p>
+          <p>Document the limits publicly for partner APIs. Undocumented limits look like random outages. When we raised a partner from 60 to 300 after reviewing their traffic shape, the change was a config deploy—not an emergency rewrite.</p>
+          <ul>
+            <li>Derive limits from observed p95 client behavior plus headroom</li>
+            <li>Charge multi-token costs for expensive handlers</li>
+            <li>Publish partner limits and changelog them</li>
+            <li>Alert on 429 rate, not only on 5xx</li>
+          </ul>
+
+          <h2>Edge rate limits vs application rate limits</h2>
+          <p>CDN or API-gateway limits catch volumetric abuse early and protect origin CPU. Application limits enforce product rules per user and per route. I run both when traffic warrants it. Edge alone cannot express “this authenticated tenant gets 10 report jobs per hour.”</p>
+          <p>If you only put limits in Nginx and forget the app, a second ingress path—internal service mesh, forgotten port, new cloud load balancer—bypasses them. Defense in depth means the app still knows how to say no.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Put rate limits on every public endpoint before launch, not after an incident.</li>
+            <li>Prefer Redis-backed token buckets for multi-instance APIs; keep consume/refill atomic.</li>
+            <li>Key by user id when authenticated; use IP only as a fallback for anonymous traffic.</li>
+            <li>Return 429 with Retry-After and remaining-limit headers clients can honor.</li>
+            <li>Decide fail-open vs fail-closed per route class when Redis is unavailable.</li>
+            <li>Load-test with many subjects—shared staging keys hide real aggregate load.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="optimize-images-webp-avif.html" class="btn btn-secondary">&larr; WebP and AVIF Image Optimization That Actu…</a>
+        <a href="nodejs-env-vars-security.html" class="btn btn-primary">Next: Environment Variables Security for Node Ap… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

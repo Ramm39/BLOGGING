@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How to Fix CORS Errors in Browser APIs (Preflight, Credentials, and Proxies) — BudhiWorks</title>
+  <meta name="description" content="A practitioner&#x27;s playbook for diagnosing Access-Control-Allow-Origin failures, fixing OPTIONS preflight, cookie credentials, and Vite/Express proxy setups.">
+  <link rel="canonical" href="https://budhiworks.com/articles/how-to-fix-cors-errors.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="How to Fix CORS Errors in Browser APIs (Preflight, Credentials, and Proxies) — BudhiWorks">
+  <meta property="og:description" content="A practitioner&#x27;s playbook for diagnosing Access-Control-Allow-Origin failures, fixing OPTIONS preflight, cookie credentials, and Vite/Express proxy setups.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/how-to-fix-cors-errors.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="CORS errors, Access-Control-Allow-Origin, preflight OPTIONS, credentials cookies, Express CORS, Vite proxy">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-06-02">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Backend</span>
+          <h1 class="article-title">How to Fix CORS Errors in Browser APIs (Preflight, Credentials, and Proxies)</h1>
+          <p class="article-lead">I still see CORS turn a 20-minute feature into a two-hour rabbit hole. Here is the checklist I use when the browser blocks a fetch that works fine in curl.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-06-02">June 2, 2026</time> &bull; 11 min read &bull; ~1038 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>CORS failures are browser-only; curl success proves nothing about the frontend.</li>
+            <li>JSON plus custom headers means OPTIONS preflight must succeed first.</li>
+            <li>Credentials require a concrete ACAO origin, never a wildcard.</li>
+            <li>Use a Vite or Next proxy locally; configure real CORS for production.</li>
+            <li>Gateways can strip or cache CORS headers — inspect the final response.</li>
+            <li>Allowlist origins from env; never reflect arbitrary Origin with credentials.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>What the browser actually blocked</h2>
+          <p>Last quarter I burned an afternoon on a dashboard that worked in Postman and failed in Chrome with a blocked CORS policy on https://api.example.com/me from origin http://localhost:5173. Curl returned 200. The API was fine. The browser was enforcing the same-origin policy on a cross-origin fetch.</p>
+          <p>CORS is not authentication. It is a browser gate: the server must opt in to being readable by a specific origin. If you only test with curl, Insomnia, or server-to-server calls, you will never see the failure. I now reproduce every failing request in DevTools Network with Preserve log on before I touch middleware.</p>
+          <p>One more habit that saved me: click the failing request and read the Console message carefully. Chrome often says the response to the preflight request does not pass access control, which means you are debugging OPTIONS, not GET. I paste the exact Origin header into a note so I do not fix the wrong host after a port change from 5173 to 5174.</p>
+
+          <h2>Simple requests vs preflight</h2>
+          <p>A GET or POST with Content-Type application/x-www-form-urlencoded, multipart/form-data, or text/plain, and no custom headers, can be a simple request. Everything else triggers a preflight: an OPTIONS request before the real method.</p>
+          <p>In my apps, JSON APIs almost always preflight because we send Content-Type application/json and often Authorization. If OPTIONS is not handled, Chrome shows a CORS error even though the real route would have returned 200. I have fixed this three times by adding an OPTIONS handler or enabling CORS middleware that answers preflight.</p>
+          <p>Watch for frameworks that only register GET/POST and return 404 for OPTIONS. NestJS, Express routers with strict method lists, and API gateways that block unknown methods all produce the same symptom. In one staging env, our ALB returned 405 for OPTIONS while Node never saw the request — we enabled OPTIONS at the load balancer, not only in Express.</p>
+          <pre><code># Express: answer preflight explicitly if you are not using cors()
+app.options(&#x27;/api/*&#x27;, (req, res) =&gt; {
+  res.setHeader(&#x27;Access-Control-Allow-Origin&#x27;, &#x27;http://localhost:5173&#x27;);
+  res.setHeader(&#x27;Access-Control-Allow-Methods&#x27;, &#x27;GET,POST,PUT,PATCH,DELETE,OPTIONS&#x27;);
+  res.setHeader(&#x27;Access-Control-Allow-Headers&#x27;, &#x27;Content-Type, Authorization&#x27;);
+  res.setHeader(&#x27;Access-Control-Max-Age&#x27;, &#x27;86400&#x27;);
+  res.sendStatus(204);
+});</code></pre>
+
+          <h2>The credentials trap</h2>
+          <p>When the frontend needs cookies with credentials include in fetch, or withCredentials true in Axios, the server cannot respond with Access-Control-Allow-Origin as a wildcard. It must echo a specific origin and set Access-Control-Allow-Credentials true.</p>
+          <p>I once shipped origin true in the cors package and forgot credentials true on the client. Cookies never arrived. Another time I set both sides correctly but left SameSite=Strict on a cross-site cookie — CORS looked fixed, session still empty. Check Set-Cookie attributes in the response headers, not only ACAO.</p>
+          <p>Numbers from a real incident: about 70 percent of login-then-logout reports on a SPA were cookie attribute mismatches, not bad JWT secrets. DevTools showed a SameSite warning. We switched to SameSite=None Secure for the cross-site API host and those tickets dropped overnight.</p>
+          <pre><code>// Client
+fetch(&#x27;https://api.example.com/me&#x27;, {
+  method: &#x27;GET&#x27;,
+  credentials: &#x27;include&#x27;,
+  headers: { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; },
+});
+
+// Server (cors package)
+import cors from &#x27;cors&#x27;;
+app.use(cors({
+  origin: [&#x27;http://localhost:5173&#x27;, &#x27;https://app.example.com&#x27;],
+  credentials: true,
+  methods: [&#x27;GET&#x27;, &#x27;POST&#x27;, &#x27;PUT&#x27;, &#x27;PATCH&#x27;, &#x27;DELETE&#x27;, &#x27;OPTIONS&#x27;],
+  allowedHeaders: [&#x27;Content-Type&#x27;, &#x27;Authorization&#x27;],
+}));</code></pre>
+
+          <h2>Local fix: Vite proxy instead of fighting CORS</h2>
+          <p>For local development I prefer same-origin requests through a Vite or Next proxy. The browser talks to http://localhost:5173/api/... and Vite forwards to the real API. No CORS headers required locally because the page origin matches the request origin.</p>
+          <p>I use this pattern on every greenfield SPA now. Production still needs real CORS or a gateway on the same domain. The proxy is a developer ergonomics tool, not a production security model.</p>
+          <p>One footgun: if your API already prefixes routes with /api and Vite also mounts at /api, you may double-prefix after a rewrite. I log the proxied URL once at startup. Also set changeOrigin true when the upstream checks Host headers; without it some frameworks reject the request before CORS middleware runs.</p>
+          <pre><code>// vite.config.ts
+import { defineConfig } from &#x27;vite&#x27;;
+import react from &#x27;@vitejs/plugin-react&#x27;;
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      &#x27;/api&#x27;: {
+        target: &#x27;http://localhost:4000&#x27;,
+        changeOrigin: true,
+      },
+    },
+  },
+});</code></pre>
+
+          <h2>Allowlists that do not bite you in staging</h2>
+          <p>Hardcoding http://localhost:5173 works until someone uses 5174, a preview deploy URL, or 127.0.0.1 instead of localhost. Browsers treat those as different origins. I keep an env list and reject missing Origin rather than reflecting whatever the client sends.</p>
+          <p>Reflecting arbitrary Origin values with credentials enabled lets any website read authenticated responses. Our allowlist lives in CORS_ORIGINS and we fail closed in production. In development we allow a shortlist of localhost ports so preview branches still work.</p>
+          <pre><code>function corsOrigin(req, callback) {
+  const allowed = (process.env.CORS_ORIGINS || &#x27;&#x27;)
+    .split(&#x27;,&#x27;)
+    .map((s) =&gt; s.trim())
+    .filter(Boolean);
+  const origin = req.header(&#x27;Origin&#x27;);
+  if (!origin) return callback(null, false);
+  if (allowed.includes(origin)) return callback(null, true);
+  return callback(new Error(`Origin ${origin} not allowed`), false);
+}
+
+app.use(cors({ origin: corsOrigin, credentials: true }));</code></pre>
+
+          <h2>My 10-minute diagnosis checklist</h2>
+          <p>Open the failed request in Network. If you see a red OPTIONS with 404 or 405, fix preflight first. If OPTIONS is 204 but the real request fails CORS, compare Origin with Access-Control-Allow-Origin character-for-character — trailing slashes and http versus https matter.</p>
+          <p>Confirm you did not set a wildcard with credentials. Confirm custom headers are listed in Access-Control-Allow-Headers. If you use a CDN or API gateway, check that it forwards OPTIONS and does not strip ACA headers. In one production incident Cloudflare cached a preflight without credentials for 24 hours and every cookie-auth user looked broken until we purged.</p>
+          <ul>
+            <li>Reproduce in the browser Network tab, not only curl</li>
+            <li>Fix OPTIONS before debugging the real method</li>
+            <li>Never combine a wildcard ACAO with credentials</li>
+            <li>Prefer a local proxy for SPA plus separate API in development</li>
+            <li>Verify gateway or CDN does not strip or cache bad CORS responses</li>
+            <li>Diff Origin versus ACAO including scheme and port</li>
+          </ul>
+
+          <h2>Production pattern I settle on</h2>
+          <p>Allowlist exact frontend origins from env. Reject unknown origins. Keep credentials only if you truly need cookie sessions; Bearer tokens in Authorization avoid cookie plus CORS complexity for many SPAs.</p>
+          <p>For mobile WebViews and multiple subdomains, I sometimes put API and app under a shared parent domain and terminate TLS at a reverse proxy so browsers see same-site requests. That removed an entire class of CORS tickets for one client — about 40 percent of their API-is-down Slack threads were actually CORS misconfig.</p>
+          <p>I also document the matrix in the README: which env, which origin, cookie or bearer, proxy or direct. The next person debugging at 11pm should not rediscover these rules from stack traces alone.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>CORS failures are browser-only; curl success proves nothing about the frontend.</li>
+            <li>JSON plus custom headers means OPTIONS preflight must succeed first.</li>
+            <li>Credentials require a concrete ACAO origin, never a wildcard.</li>
+            <li>Use a Vite or Next proxy locally; configure real CORS for production.</li>
+            <li>Gateways can strip or cache CORS headers — inspect the final response.</li>
+            <li>Allowlist origins from env; never reflect arbitrary Origin with credentials.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="../index.html#articles" class="btn btn-secondary">&larr; All articles</a>
+        <a href="core-web-vitals-guide.html" class="btn btn-primary">Next: Core Web Vitals Guide: Practical LCP, INP,… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

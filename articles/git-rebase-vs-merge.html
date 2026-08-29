@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Git Rebase vs Merge: A Safe Workflow We Use on Feature Branches — BudhiWorks</title>
+  <meta name="description" content="When I rebase, when I merge, how we avoid rewriting shared history, and the exact commands for a clean PR timeline.">
+  <link rel="canonical" href="https://budhiworks.com/articles/git-rebase-vs-merge.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Git Rebase vs Merge: A Safe Workflow We Use on Feature Branches — BudhiWorks">
+  <meta property="og:description" content="When I rebase, when I merge, how we avoid rewriting shared history, and the exact commands for a clean PR timeline.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/git-rebase-vs-merge.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="git rebase vs merge, interactive rebase, feature branch workflow, git pull --rebase, safe git history">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-06-25">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Developer Tools</span>
+          <h1 class="article-title">Git Rebase vs Merge: A Safe Workflow We Use on Feature Branches</h1>
+          <p class="article-lead">Rebase versus merge is not religion on our team. It is about whether the commits are private and whether we want a linear PR.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-06-25">June 25, 2026</time> &bull; 12 min read &bull; ~1098 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Rebase private feature branches; never rewrite shared history.</li>
+            <li>Pull with rebase to catch conflicts early while commits are fresh.</li>
+            <li>Interactive rebase before review to remove WIP noise.</li>
+            <li>Use --force-with-lease, not bare --force, when updating a feature remote.</li>
+            <li>Choose squash, merge, or rebase-merge at PR time based on the story you want on main.</li>
+            <li>Know rebase --abort and reflog recovery before you need them under pressure.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>The rule that prevents disasters</h2>
+          <p>Never rebase commits that other people already pulled. Rebase rewrites SHAs. If main or a shared long-lived branch gets rebased, teammates must recover with reset and rebase gymnastics. We only rebase local feature branches that we own.</p>
+          <p>Merge commits preserve exact history and branching topology. Rebase replays your commits on top of an updated base for a straight-line story. Both are valid; mixing them without a team convention is what hurts.</p>
+          <p>We wrote this as a one-page CONTRIBUTING rule after a shared-branch rewrite burned about four engineer-hours in a single afternoon. Conventions beat cleverness here.</p>
+
+          <h2>Daily sync: pull --rebase on feature branches</h2>
+          <p>While building a feature, I keep my branch current with git fetch origin and git rebase origin/main, or git pull --rebase origin main. That surfaces conflicts early in small chunks instead of one monster merge at PR time.</p>
+          <p>We set pull.rebase true locally for feature work. Shared release branches still merge.</p>
+          <p>I rebase at least once a day on long features. Waiting a week means resolving the same conflict across many commits. Early rebases took me about 5 minutes; late ones took over an hour on a billing branch that touched shared types.</p>
+          <pre><code># Update feature branch onto latest main
+git fetch origin
+git switch feature/billing-retry
+git rebase origin/main
+
+# If conflicts: fix files, then
+git add .
+git rebase --continue
+
+# Abort if it goes sideways
+git rebase --abort</code></pre>
+
+          <h2>Cleaning the story before review</h2>
+          <p>Before requesting review I often run interactive rebase onto origin/main and squash wip and fix typo commits into logical units. Reviewers get 3 commits that mean something instead of 27 noise commits. Force-push is required afterward — only on my feature branch, and we use --force-with-lease so I do not clobber unexpected remote commits.</p>
+          <p>I aim for commits that each leave tests green. Reviewers can bisect later if something regresses. A single giant squash of a week of work is fine for tiny PRs; for multi-day features I keep a short narrative.</p>
+          <pre><code>git rebase -i origin/main
+# mark commits as squash/fix/reword
+
+git push --force-with-lease origin feature/billing-retry</code></pre>
+
+          <h2>Merging into main</h2>
+          <p>On GitHub we usually Squash and merge for small PRs so main stays linear with one commit per feature. For larger multi-commit PRs that tell a deliberate story, we use merge commits or rebase-and-merge depending on the repo setting.</p>
+          <p>I avoid rebasing main onto a feature branch in public view. The integration direction is: update feature onto main, then merge feature into main via the PR UI.</p>
+          <p>Release branches freeze with merge-only. Hotfixes branch from the release tag, merge back to release and to main. Trying to rebase a hotfix that QA already tested is how you get works-on-my-machine checksum mismatches.</p>
+
+          <h2>When merge is the better tool</h2>
+          <p>Long-running release branches, hotfixes already shared, and any branch multiple people push to — merge. Also when you need to preserve the exact fact that two lines of development coexisted; compliance and audit trails sometimes care.</p>
+          <p>A teammate once rebased a shared develop branch to clean history and burned half a day of engineering time. We wrote the rule down after that.</p>
+          <ul>
+            <li>Private feature branch — rebase onto main is fine</li>
+            <li>Shared branch — merge only</li>
+            <li>Force push only with --force-with-lease on your branch</li>
+            <li>Resolve conflicts during rebase carefully; abort when unsure</li>
+            <li>Prefer early rebases over one giant conflict at the end</li>
+            <li>Release and hotfix branches stay merge-only</li>
+          </ul>
+
+          <h2>Recovering when a rebase goes wrong</h2>
+          <p>git rebase --abort is the first escape hatch if you are still mid-rebase. If you already finished and force-pushed something bad, git reflog usually still has the previous tip for a while. I restore with git reset --hard ORIG_HEAD immediately after a bad rebase, or HEAD@{1} from reflog when ORIG_HEAD is gone.</p>
+          <p>Tell anyone who pulled the bad tip to reset to the restored SHA. Communication matters more than the exact command once history diverged on a shared remote.</p>
+          <pre><code># Still in a rebase?
+git rebase --abort
+
+# Just finished a bad rebase, not pushed yet
+git reset --hard ORIG_HEAD
+
+# Already pushed; recover tip from reflog, then force-with-lease
+git reflog
+git reset --hard HEAD@{1}
+git push --force-with-lease origin feature/billing-retry</code></pre>
+
+          <h2>What we tell new teammates on day one</h2>
+          <p>Update your feature branch with rebase onto main. Open PRs from feature into main. Never force-push main. Never rebase a branch two people are committing to. When unsure, merge and ask in Slack — a merge commit is cheap compared with rewriting shared history.</p>
+          <p>We pair on the first interactive rebase. Squash, fixup, and reword are muscle memory after one guided session; without that session people either never clean history or force-push scared. CI must be green after rebase before review.</p>
+
+          <h2>PR UI settings we standardize</h2>
+          <p>Repos that prefer a linear main enable Allow squash merging and disable merge commits, or enable rebase-merging carefully. Mixed settings across repos confused people about whether they should clean locally.</p>
+          <p>Required status checks on main mean a force-pushed feature branch re-runs CI. That is good. I wait for green after force-with-lease before pinging reviewers again so they do not review an already-superseded SHA. Branch protection on main rejects force pushes; feature branches stay unprotected so rebase workflows work.</p>
+          <ul>
+            <li>Protect main against force push and direct commits</li>
+            <li>Allow force-with-lease on personal feature branches</li>
+            <li>Re-run CI after every rebase push</li>
+            <li>Agree repo-wide on squash versus merge versus rebase-merge</li>
+          </ul>
+
+          <h2>Bisect loves clean history</h2>
+          <p>When a production bug lands, git bisect across squash-merged main finds the PR quickly. Across a week of WIP commits on a long-lived branch, bisect lands on wip fix again and wastes time. That is a practical reason we clean feature history before merge, not an aesthetic one.</p>
+          <p>If you must keep fine-grained commits on main for blame archaeology, say so in the repo guide and use merge or rebase-merge consistently. Silent policy differences between teams sharing a monorepo cause the worst arguments. Default stance on our team: rebase privately, merge publicly through the PR button, recover with reflog, and optimize for bisectable main.</p>
+
+          <h2>Conflict survival tips</h2>
+          <p>During rebase, conflicted files are your commit applied onto newer main. Read both sides. Run tests after continue. If the same conflict repeats across commits, consider squashing first so you fix it once.</p>
+          <p>For binary files or generated lockfile hell, sometimes aborting, merging main into the feature branch once, and fixing lockfiles in a single merge commit is less painful than rebasing 15 lockfile bumps. Pragmatism beats purity.</p>
+          <p>I keep a sticky note of files that always conflict such as generated GraphQL types and lockfiles. For those, I regenerate from source after resolving rather than hand-merging thousands of lines. Bisect loves clean history on main — that is a practical reason we clean feature history before merge, not an aesthetic one.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Rebase private feature branches; never rewrite shared history.</li>
+            <li>Pull with rebase to catch conflicts early while commits are fresh.</li>
+            <li>Interactive rebase before review to remove WIP noise.</li>
+            <li>Use --force-with-lease, not bare --force, when updating a feature remote.</li>
+            <li>Choose squash, merge, or rebase-merge at PR time based on the story you want on main.</li>
+            <li>Know rebase --abort and reflog recovery before you need them under pressure.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="postgresql-indexes-explained.html" class="btn btn-secondary">&larr; PostgreSQL Indexes Explained: When B-tree …</a>
+        <a href="typescript-generics-practical-guide.html" class="btn btn-primary">Next: Practical TypeScript Generics for APIs and… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

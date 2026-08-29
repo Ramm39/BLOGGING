@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vite vs Webpack in 2026: When I Pick Which — BudhiWorks</title>
+  <meta name="description" content="A practitioner comparison of Vite and Webpack for real apps—dev server speed, legacy constraints, microfrontends, and migration costs.">
+  <link rel="canonical" href="https://budhiworks.com/articles/vite-vs-webpack.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Vite vs Webpack in 2026: When I Pick Which — BudhiWorks">
+  <meta property="og:description" content="A practitioner comparison of Vite and Webpack for real apps—dev server speed, legacy constraints, microfrontends, and migration costs.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/vite-vs-webpack.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="Vite vs Webpack, Vite 2026, Webpack 5, frontend bundler, esbuild Rollup, module federation">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-08-19">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Developer Tools</span>
+          <h1 class="article-title">Vite vs Webpack in 2026: When I Pick Which</h1>
+          <p class="article-lead">I still maintain Webpack apps and start most greenfield UI in Vite. Here is how I choose in 2026 without rewriting working build pipelines for sport.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-08-19">August 19, 2026</time> &bull; 8 min read &bull; ~1126 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Choose Vite for most new modern SPAs; keep Webpack when Federation or unique loaders dominate.</li>
+            <li>Judge tools by cold start, HMR, production correctness, and migration cost—not brand.</li>
+            <li>Expect larger wins in local DX than in already-cached CI production builds.</li>
+            <li>Migrate incrementally: leaf apps first, host bundles later.</li>
+            <li>Watch import.meta.env, CSS, and asset URL differences during cutover.</li>
+            <li>Follow your meta-framework’s default bundler unless you have a strong reason not to.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>The question is not which is “better”</h2>
+          <p>Webpack shaped a decade of frontend tooling. Vite changed the default expectation for cold start and HMR. In 2026 both ship production apps successfully. The decision is about constraints: team knowledge, plugin ecosystem needs, and how painful a migration would be.</p>
+          <p>I measure three things: time to first meaningful edit on a laptop, production bundle correctness for our targets, and the cost of the weird requirement—legacy browsers, Module Federation, or a custom loader nobody else has.</p>
+          <p>I also ask: will juniors on the team debug this build file? Opaque config is an operational liability.</p>
+
+          <h2>Where Vite wins for me</h2>
+          <p>Greenfield React, Vue, and Svelte apps start in Vite unless a hard requirement says otherwise. Native ESM in dev plus esbuild transforms make cold starts feel instant compared to older Webpack setups we still have.</p>
+          <p>Config stays smaller for common cases. Official templates are good. SSR and library modes are first-class enough for most product work I do.</p>
+          <p>Production builds use Rollup under the hood. Tree-shaking is strong. For typical SPAs targeting modern browsers, I have not missed Webpack.</p>
+          <ul>
+            <li>New SPAs and component libraries</li>
+            <li>Teams that value fast HMR over custom loader archaeology</li>
+            <li>Modern browser baselines (no IE, limited legacy)</li>
+            <li>Simple multi-page setups Vite supports cleanly</li>
+          </ul>
+
+          <h2>Where Webpack still earns its keep</h2>
+          <p>Module Federation at scale is still a Webpack stronghold in several enterprises I work with. If your org standardized on Federation for microfrontends and the graph is already wired, ripping it out for Vite’s federation options is a program, not a weekend.</p>
+          <p>Exotic loaders, decades-old CSS pipelines, and “this one plugin only exists for Webpack” situations are real. I have seen migrations stall for months because of a single internal loader that rewrote i18n catalogs.</p>
+          <p>Some large codebases already invested in Webpack persistent caching and carefully tuned splitChunks. The build is slow but known. Vite may be faster—and still lose on total cost of change.</p>
+
+          <h2>Dev experience numbers from one migration</h2>
+          <p>On a mid-size React app (~1.2k modules), Webpack 5 cold start averaged about 28 seconds on my M-series laptop. Vite cold start was under 2 seconds. HMR for a leaf component went from ~3–5 seconds of “wait, did it refresh?” to near-immediate.</p>
+          <p>Production build times were closer: Vite/Rollup around 40 seconds, Webpack with filesystem cache warm around 35–50 depending on cache hits. The daily win was developer loop, not CI by itself.</p>
+          <p>CI caching for Vite is straightforward with dependency hashes. Webpack filesystem cache also works—measure both before declaring a winner for pipelines.</p>
+
+          <h2>Migration path that did not blow up</h2>
+          <p>I do not big-bang rewrite webpack.config.js on Friday. I move one package in a monorepo first—usually the design system or a leaf app—and keep Webpack for the host until federation or shared deps are sorted.</p>
+          <p>Watch for differences in env handling (import.meta.env vs DefinePlugin), asset URL behavior, and how CSS modules hash class names. Visual diffs caught a missing global stylesheet import we had accidentally relied on Webpack’s context for.</p>
+          <pre><code>// vite.config.js — typical SPA
+import { defineConfig } from &#x27;vite&#x27;;
+import react from &#x27;@vitejs/plugin-react&#x27;;
+
+export default defineConfig({
+  plugins: [react()],
+  server: { port: 5173, proxy: { &#x27;/api&#x27;: &#x27;http://localhost:3000&#x27; } },
+  build: {
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: [&#x27;react&#x27;, &#x27;react-dom&#x27;],
+        },
+      },
+    },
+  },
+});</code></pre>
+
+          <h2>Decision heuristic I use in 2026</h2>
+          <p>New app, modern browsers, no Federation mandate: Vite. Existing Webpack app with no pain: leave it, maybe upgrade Webpack and cache settings. Painful Webpack only in local dev: evaluate Vite for that package. Hard Federation or unique loaders: stay on Webpack until there is a funded migration.</p>
+          <p>Also check your framework’s recommendation. Next.js and Nuxt have their own compilers; forcing raw Vite or Webpack underneath fighting the framework is usually the wrong fight.</p>
+          <ul>
+            <li>Optimize for daily edit-refresh loop first</li>
+            <li>Treat production parity and plugin gaps as blockers</li>
+            <li>Migrate leaf packages before hosts</li>
+            <li>Budget time for env and asset path differences</li>
+            <li>Do not migrate solely because of blog hype</li>
+          </ul>
+
+          <h2>Plugin ecosystems and the long tail</h2>
+          <p>Vite’s plugin API is Rollup-compatible for build and has a separate story for dev middleware. Most popular tools have Vite plugins in 2026. The long tail still bites: an internal Markdown transform written against Webpack’s loader API may need a rewrite.</p>
+          <p>Estimate that rewrite in hours before promising “we’ll just switch.” I once quoted two days and spent two weeks on a SVG pipeline that depended on Webpack’s resourceQuery quirks.</p>
+          <p>Conversely, staying on Webpack forever because of one obscure plugin can cost more in engineer frustration than rewriting the plugin. Put a calendar reminder on “revisit migration” every two quarters if DX pain is high.</p>
+
+          <h2>TypeScript, CSS, and monorepos</h2>
+          <p>Both tools handle TypeScript. Vite leans on esbuild for transpile speed and leaves typechecking to vue-tsc/tsc in CI—which is the right split. Do not expect the bundler to be your typechecker.</p>
+          <p>In monorepos, Vite’s dependency prebundling needs careful optimizeDeps includes for linked workspace packages. Webpack’s module resolution pain is older and better documented in tribal knowledge—neither is free.</p>
+          <p>Pick one story for CSS: CSS modules, vanilla-extract, Tailwind. Fighting the bundler and the CSS approach at the same time makes migrations unreadable in review.</p>
+
+          <h2>Library mode and publishing packages</h2>
+          <p>When I publish a UI kit, Vite library mode with multiple formats (ES and CJS when required) is usually enough. Preserve modules when consumers need treeshaking across deep imports.</p>
+          <p>Webpack is still used in some design-system pipelines that emit many asset flavors. If your package build is already green and automated, migration is optional.</p>
+          <p>Externalize peer dependencies—react, react-dom—so you do not bundle a second copy into every consumer. Both tools support externals; forgetting them causes “Invalid hook call” tickets.</p>
+          <pre><code>export default defineConfig({
+  build: {
+    lib: {
+      entry: &#x27;src/index.ts&#x27;,
+      name: &#x27;UiKit&#x27;,
+      formats: [&#x27;es&#x27;],
+      fileName: &#x27;ui-kit&#x27;,
+    },
+    rollupOptions: {
+      external: [&#x27;react&#x27;, &#x27;react-dom&#x27;],
+    },
+  },
+});</code></pre>
+
+          <h2>What I tell stakeholders</h2>
+          <p>Leadership hears “Webpack is old” and “Vite is fast.” I translate to risk language: estimated eng-days, regression risk on checkout, and expected weekly hours saved in local builds. Without those numbers the loudest blog post wins.</p>
+          <p>If the team is drowning in 40-second HMR, Vite (or a framework upgrade that includes a faster bundler) is an easy yes. If production builds are fine and Federation is critical, keep Webpack and invest in cache and developer machines instead.</p>
+
+          <h2>My default recommendation this year</h2>
+          <p>Start new product UIs on Vite or on a framework that already chose a fast bundler for you. Keep healthy Webpack apps healthy. Migrate when local DX pain is measurable and Federation or custom loaders are not blockers.</p>
+          <p>Re-evaluate yearly. The gap between tools narrows and widens as releases ship. The constant is your constraints: team skill, plugin needs, and customer-facing risk.</p>
+          <p>Ignore internet arguments that declare one tool dead. Ship software. Measure cold start. Measure production. Choose the boring option that makes Monday morning editing pleasant.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Choose Vite for most new modern SPAs; keep Webpack when Federation or unique loaders dominate.</li>
+            <li>Judge tools by cold start, HMR, production correctness, and migration cost—not brand.</li>
+            <li>Expect larger wins in local DX than in already-cached CI production builds.</li>
+            <li>Migrate incrementally: leaf apps first, host bundles later.</li>
+            <li>Watch import.meta.env, CSS, and asset URL differences during cutover.</li>
+            <li>Follow your meta-framework’s default bundler unless you have a strong reason not to.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="debug-nodejs-memory-leaks.html" class="btn btn-secondary">&larr; Debugging Node.js Memory Leaks with Heap S…</a>
+        <a href="kubernetes-secrets-management.html" class="btn btn-primary">Next: Kubernetes Secrets Management Basics Witho… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

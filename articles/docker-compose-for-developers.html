@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docker Compose for Local Node, Postgres, and Redis — BudhiWorks</title>
+  <meta name="description" content="A practical Compose file for day-to-day Node development with Postgres and Redis, including volumes, healthchecks, and the mistakes that ate my weekends.">
+  <link rel="canonical" href="https://budhiworks.com/articles/docker-compose-for-developers.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Docker Compose for Local Node, Postgres, and Redis — BudhiWorks">
+  <meta property="og:description" content="A practical Compose file for day-to-day Node development with Postgres and Redis, including volumes, healthchecks, and the mistakes that ate my weekends.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/docker-compose-for-developers.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="Docker Compose, Node.js, Postgres, Redis, local development, healthcheck, volumes">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-06-11">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">DevOps</span>
+          <h1 class="article-title">Docker Compose for Local Node, Postgres, and Redis</h1>
+          <p class="article-lead">I want one command that brings up API, Postgres, and Redis the same way on every laptop. This is the Compose setup we copy into new services.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-06-11">June 11, 2026</time> &bull; 12 min read &bull; ~1031 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Compose the databases; optionally run Node on the host for faster reload.</li>
+            <li>Pin image versions and wait on healthchecks before starting the API.</li>
+            <li>localhost versus service name depends on whether the process is in a container.</li>
+            <li>Bind-mount source with an anonymous node_modules volume to avoid native binary clashes.</li>
+            <li>Treat down -v as destructive; use a unique COMPOSE_PROJECT_NAME per repo.</li>
+            <li>Run migrations as an explicit step with retries, not as a silent boot side effect.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>Why Compose instead of five terminal tabs</h2>
+          <p>Onboarding used to be install Postgres 16, Redis 7, create a role, remember the port conflicts with the other project. New hires lost a day. Compose gives us reproducible ports, versions, and seed scripts. I still run the Node process on the host with hot reload when I iterate fast, and only containerize Node when we need parity with production images.</p>
+          <p>Two modes: full stack in Compose for demos and CI, and docker compose up db redis while npm run dev hits localhost mapped ports. Both share the same compose.yaml.</p>
+          <p>Before Compose, we had a wiki page with 14 steps and three different Homebrew formulae depending on macOS version. After Compose, first successful up median time for new hires went from roughly a day to under 30 minutes, including cloning and copying .env.example.</p>
+
+          <h2>A Compose file that survives Monday mornings</h2>
+          <p>Pin image tags. postgres:latest bit us when a major jumped overnight. Named volumes keep data across restarts. Healthchecks stop the API from racing migrations before Postgres accepts connections — that race caused flaky CI for weeks.</p>
+          <p>I also set restart unless-stopped on db and redis for long-lived laptops, and I keep resource limits light so a runaway migration cannot freeze Docker Desktop. Memory 512M for Postgres is enough for local datasets under a few GB.</p>
+          <pre><code>services:
+  db:
+    image: postgres:16.3-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app_dev
+    ports:
+      - &quot;5432:5432&quot;
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [&quot;CMD-SHELL&quot;, &quot;pg_isready -U app -d app_dev&quot;]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - &quot;6379:6379&quot;
+    command: [&quot;redis-server&quot;, &quot;--save&quot;, &quot;60&quot;, &quot;1&quot;, &quot;--loglevel&quot;, &quot;warning&quot;]
+    healthcheck:
+      test: [&quot;CMD&quot;, &quot;redis-cli&quot;, &quot;ping&quot;]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file: .env.docker
+    environment:
+      DATABASE_URL: postgres://app:app@db:5432/app_dev
+      REDIS_URL: redis://redis:6379
+    ports:
+      - &quot;4000:4000&quot;
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:</code></pre>
+
+          <h2>Networking and .env gotchas</h2>
+          <p>Inside the Compose network, hostname is the service name db or redis, not localhost. I have pasted localhost into a containerized API more times than I will admit — connection refused, 30 minutes of blame on Postgres.</p>
+          <p>Host-run Node must use localhost:5432. Container-run Node must use db:5432. We keep two env files: .env for host and .env.docker for Compose, or we template DATABASE_URL in scripts. Document that in README in bold; it is the number one Slack question.</p>
+          <p>Port collisions are the other weekly pain. If another project already bound 5432, Compose fails in a cryptic way. I map host 5433 to container 5432 for secondary projects and put the host port in .env so people do not hardcode.</p>
+
+          <h2>Anonymous volumes for node_modules</h2>
+          <p>The trick of bind-mounting . to /app plus an anonymous volume at /app/node_modules prevents the host from overwriting Linux node_modules with macOS binaries or an empty folder. Without the anonymous volume, native modules like bcrypt crash with invalid ELF headers.</p>
+          <p>When dependencies change, I run docker compose run --rm api npm ci or rebuild. Cold npm ci in the image took about 90s on our M2; mounting source keeps edit-reload under a second with nodemon.</p>
+          <pre><code># Dockerfile.dev
+FROM node:22-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+CMD [&quot;npm&quot;, &quot;run&quot;, &quot;dev&quot;]</code></pre>
+
+          <h2>Migrations that wait for healthy Postgres</h2>
+          <p>Even with depends_on healthchecks, I wrap migration commands in a tiny retry script for CI. Postgres can accept connections and still reject the first migration if the role setup from init.sql is mid-flight on a slow disk.</p>
+          <p>We run migrations as a one-shot Compose service in CI, not as a side effect of API boot, so failed migrations fail the job clearly instead of leaving a half-booted API.</p>
+          <pre><code># scripts/wait-and-migrate.sh
+set -euo pipefail
+for i in $(seq 1 30); do
+  if pg_isready -h &quot;$PGHOST&quot; -U &quot;$PGUSER&quot; -d &quot;$PGDATABASE&quot;; then
+    npx prisma migrate deploy
+    exit 0
+  fi
+  sleep 2
+done
+echo &quot;Postgres never became ready&quot; &gt;&amp;2
+exit 1</code></pre>
+
+          <h2>Seeding data without fighting init.sql</h2>
+          <p>init.sql runs only on first volume create. For day-to-day seed data I use a Make target that runs a Node script against localhost after Compose is healthy. That script is idempotent with upsert by natural key so re-running it does not duplicate rows.</p>
+          <p>When I need a clean slate I explicitly run docker compose down -v, bring db and redis back, then migrate and seed. Teaching that reset stopped people from editing init.sql and wondering why nothing changed. Large dumps belong outside git on object storage.</p>
+
+          <h2>Resetting state without drama</h2>
+          <p>docker compose down keeps volumes. docker compose down -v wipes Postgres data — useful for migration experiments, catastrophic if you thought it was a soft stop. I alias dc-reset only after confirming the project name.</p>
+          <p>For shared laptops, set COMPOSE_PROJECT_NAME so volume names do not collide with another repo also calling its service db.</p>
+          <ul>
+            <li>Pin major.minor image tags</li>
+            <li>Healthcheck before depends_on</li>
+            <li>Use service DNS names inside the network</li>
+            <li>Anonymous volume for node_modules on bind mounts</li>
+            <li>Know the difference between down and down -v</li>
+            <li>Remap host ports when 5432 or 6379 are already taken</li>
+          </ul>
+
+          <h2>CI uses the same Compose file</h2>
+          <p>In GitHub Actions we run docker compose up -d db redis, wait for health, then run tests on the runner with host networking to published ports. Sharing the Compose file means local and CI Postgres majors cannot drift.</p>
+          <p>We cache the Postgres image layers and avoid building the API image in unit-test jobs. Integration jobs that need the API container build with BuildKit cache mounts so npm ci is not a cold 90s every time. A fixed sleep was sometimes too short on busy runners; healthchecks fixed that class of flake permanently.</p>
+
+          <h2>What I do not put in local Compose</h2>
+          <p>I avoid shipping production secrets in compose. Local passwords are app/app and never reused. I do not emulate the full Kubernetes mesh locally unless we are debugging mesh-specific bugs — Compose is for data stores and optional API parity.</p>
+          <p>Redis persistence is optional locally; I enable light RDB saves so cache warmups survive a reboot during a long feature branch. Postgres init scripts run only on empty volumes — after the first boot, change schema with migrations, not by editing init.sql and expecting it to re-run.</p>
+          <p>In GitHub Actions we run the same Compose file for db and redis, wait for health, then run tests on published ports. Flakes dropped once healthchecks gated the test start instead of a fixed sleep 10. Publish a one-line happy path in the README: compose up db redis, copy env, npm i, npm run dev.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Compose the databases; optionally run Node on the host for faster reload.</li>
+            <li>Pin image versions and wait on healthchecks before starting the API.</li>
+            <li>localhost versus service name depends on whether the process is in a container.</li>
+            <li>Bind-mount source with an anonymous node_modules volume to avoid native binary clashes.</li>
+            <li>Treat down -v as destructive; use a unique COMPOSE_PROJECT_NAME per repo.</li>
+            <li>Run migrations as an explicit step with retries, not as a silent boot side effect.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="jwt-authentication-nodejs.html" class="btn btn-secondary">&larr; JWT Access and Refresh Tokens in Node/Expr…</a>
+        <a href="react-useeffect-common-mistakes.html" class="btn btn-primary">Next: React useEffect Mistakes I Keep Reviewing … &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

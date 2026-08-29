@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Actions CI/CD for Node Apps: Test, Build, Deploy — BudhiWorks</title>
+  <meta name="description" content="A production-minded GitHub Actions workflow for Node.js: install caching, tests, build artifacts, and deploy patterns that avoid common CI pitfalls.">
+  <link rel="canonical" href="https://budhiworks.com/articles/github-actions-ci-cd.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="GitHub Actions CI/CD for Node Apps: Test, Build, Deploy — BudhiWorks">
+  <meta property="og:description" content="A production-minded GitHub Actions workflow for Node.js: install caching, tests, build artifacts, and deploy patterns that avoid common CI pitfalls.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/github-actions-ci-cd.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="github actions nodejs, cicd github actions, deploy node github actions, npm ci cache, github actions workflow">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-07-12">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">DevOps</span>
+          <h1 class="article-title">GitHub Actions CI/CD for Node Apps: Test, Build, Deploy</h1>
+          <p class="article-lead">I want every push to main to run tests and every green build to be deployable without SSH archaeology. This is the GitHub Actions setup I use for Node apps, including the mistakes that wasted CI minutes.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-07-12">July 12, 2026</time> &bull; 7 min read &bull; ~1011 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>npm ci + lockfile + pinned Node version is non-negotiable</li>
+            <li>Separate test, build, and deploy jobs</li>
+            <li>Store deploy secrets in GitHub Environments</li>
+            <li>Build once; deploy the same artifact when possible</li>
+            <li>Keep pipelines fast enough that people trust them</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>What “done” looks like for a Node pipeline</h2>
+          <p>On pull requests: install, lint, typecheck, unit tests. On main: same checks, then build, then deploy to staging or production with an explicit environment approval if the blast radius is high. Artifacts should be reproducible—same commit, same build output.</p>
+          <p>I used to deploy from a developer laptop with a checklist in Notion. That “process” shipped a debug flag to production. CI is not bureaucracy; it is how I stop trusting my memory at 11pm.</p>
+          <p>Done also means failed checks block merges. A yellow optional workflow that nobody watches is decoration. Protect the main branch and require the CI job by name.</p>
+          <p>Preview environments for pull requests are optional sugar. Correct mainline CI is mandatory. I add preview apps only after the basic test/build/deploy path is boringly reliable.</p>
+          <p>I also require that package-lock.json is committed and that CI fails if the lockfile would change under npm ci. Drift between package.json and the lockfile is a silent portability bug.</p>
+
+          <h2>A solid PR workflow</h2>
+          <p>Use `npm ci` with a lockfile, not `npm install`. Cache the npm directory keyed on package-lock.json. Fail fast on Node version mismatch by pinning with actions/setup-node.</p>
+          <p>I run lint and typecheck before tests when they are cheap. If tests are the slow part, keep them parallel later. The goal is a clear signal in under a few minutes for typical PRs.</p>
+          <p>Commit the Node version in .nvmrc and engines in package.json so local, CI, and production agree. Version drift caused a native module failure that only appeared on the server image.</p>
+          <p>For monorepos, scope workflows with path filters so a docs-only change does not rebuild every package. Broad workflows feel thorough and train people to ignore forty-minute waits.</p>
+          <pre><code>name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: &quot;20&quot;
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --coverage</code></pre>
+
+          <h2>Build and deploy without mystery meat</h2>
+          <p>Separate jobs: test → build → deploy. Pass the build as an artifact or rebuild in deploy with the same commit SHA. I prefer building once and uploading `dist/` so production runs exactly what CI verified.</p>
+          <p>Secrets live in GitHub Environments. Production deploy needs a reviewer. SSH keys and cloud tokens never belong in the workflow file—yes, I have seen tokens committed “temporarily.”</p>
+          <p>For container deploys, push an image tagged with the git SHA, then deploy that digest. Latest tags are how we once rolled back to the wrong build during an incident.</p>
+          <p>When deploy needs a process restart, the workflow should call a script that reloads systemd or cycles containers healthily. Ad-hoc SSH commands in YAML become untestable folklore.</p>
+          <pre><code>  build:
+    needs: test
+    if: github.ref == &#x27;refs/heads/main&#x27;
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: &quot;20&quot;
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Rsync to server
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          install -m 600 /dev/null ~/.ssh/id_ed25519
+          echo &quot;$SSH_KEY&quot; &gt; ~/.ssh/id_ed25519
+          rsync -az --delete dist/ deploy@$HOST:/var/www/app/dist/</code></pre>
+
+          <h2>Mistakes that burned CI time and nerves</h2>
+          <p>Running `npm install` without a lockfile made “green on CI, broken on server” a monthly event. Skipping `npm ci` in deploy and installing again with different optional dependencies did the same.</p>
+          <p>Another classic: tests that depend on a developer’s local `.env`. Inject test env in the workflow. And do not run deploys on every branch push—protect main and require PR checks.</p>
+          <p>Flaky tests taught the team to re-run until green. I quarantine flakes ruthlessly. A pipeline that lies is worse than no pipeline.</p>
+          <p>Concurrency groups cancel outdated runs on the same branch. Without them, an older slow workflow can deploy after a newer commit and roll you backward. I set concurrency per ref for deploy jobs.</p>
+          <ul>
+            <li>Pin Node version in setup-node and .nvmrc</li>
+            <li>Cache dependencies; do not cache node_modules blindly across OS changes</li>
+            <li>Use environments for production approvals</li>
+            <li>Keep deploy scripts idempotent (rsync --delete, migrations once)</li>
+            <li>Fail the job on soft warnings you actually care about (type errors, audit critical)</li>
+          </ul>
+
+          <h2>Migrations and zero-downtime reality</h2>
+          <p>App deploys and DB migrations need an order. Expand-contract: add nullable columns first, deploy code that reads both shapes, then backfill, then enforce constraints. I burned a release by running a destructive migration in the same job as a rolling restart.</p>
+          <p>If migrations run in CI, use a dedicated step with locked credentials and a clear failure page. Do not hide `ALTER TABLE` inside the Node process boot—two instances booting will race.</p>
+          <p>For risky migrations, ship a feature flag that stops writes to the old path before you drop a column. CI cannot save you from a one-way data loss without a backup plan.</p>
+          <p>Backup before migrate. Even expand-only migrations deserve a snapshot on production the first few times a team adopts CI-driven schema changes. Trust is earned.</p>
+
+          <h2>Signal over theater</h2>
+          <p>A pipeline that takes 25 minutes teaches people to ignore it. Parallelize lint and tests when possible. Fail on the first meaningful error. Slack noise on every success is useless; alert on failed main deploys.</p>
+          <p>Start simple: one workflow file, two jobs, one environment. Add matrix builds and preview apps when the team feels the pain—not before.</p>
+          <p>I review workflow YAML in PRs the same way I review app code. Copy-pasted actions with unpinned versions are supply-chain debt. Prefer major-version tags you consciously upgrade.</p>
+          <p>Track mean time from merge to production. If it grows past what your product needs, simplify jobs before adding more checks. Throughput is a feature of the pipeline.</p>
+          <p>Publish a short CONTRIBUTING note that links the required checks. New contributors should not discover merge blockers by trial and error on their first PR.</p>
+
+          <h2>Smoke tests after deploy</h2>
+          <p>A green unit suite does not prove the site is up. I add a post-deploy step that curls /health and a critical HTML route, failing the job if status is not 200. That caught DNS and Nginx misconfigs unit tests never see.</p>
+          <p>For APIs, hit an authenticated smoke endpoint with a scoped CI token. Keep the token read-only. If smoke fails, page a human before customers do.</p>
+          <pre><code>      - name: Smoke check
+        run: |
+          curl -fsS &quot;https://example.com/health&quot; | grep -q &#x27;&quot;ok&quot;:true&#x27;
+          curl -fsSI &quot;https://example.com/&quot; | head -n1 | grep -q 200</code></pre>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>npm ci + lockfile + pinned Node version is non-negotiable</li>
+            <li>Separate test, build, and deploy jobs</li>
+            <li>Store deploy secrets in GitHub Environments</li>
+            <li>Build once; deploy the same artifact when possible</li>
+            <li>Keep pipelines fast enough that people trust them</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="redis-caching-patterns.html" class="btn btn-secondary">&larr; Redis Caching Patterns I Use: Cache-Aside,…</a>
+        <a href="rest-api-design-best-practices.html" class="btn btn-primary">Next: REST API Design I Stick To: Status Codes, … &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

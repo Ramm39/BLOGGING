@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nginx Reverse Proxy for Node Apps (With SSL Notes That Matter) — BudhiWorks</title>
+  <meta name="description" content="How I put Nginx in front of Node.js apps: upstream config, proxy headers, WebSockets, Let&#x27;s Encrypt pitfalls, and production checklist items.">
+  <link rel="canonical" href="https://budhiworks.com/articles/nginx-reverse-proxy-setup.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Nginx Reverse Proxy for Node Apps (With SSL Notes That Matter) — BudhiWorks">
+  <meta property="og:description" content="How I put Nginx in front of Node.js apps: upstream config, proxy headers, WebSockets, Let&#x27;s Encrypt pitfalls, and production checklist items.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/nginx-reverse-proxy-setup.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="nginx reverse proxy nodejs, nginx ssl letsencrypt, proxy_pass node, nginx websocket, deploy node behind nginx">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-07-05">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">DevOps</span>
+          <h1 class="article-title">Nginx Reverse Proxy for Node Apps (With SSL Notes That Matter)</h1>
+          <p class="article-lead">Exposing Node on port 3000 to the internet is fine for a demo and a liability in production. Here is the Nginx reverse proxy setup I reuse, plus SSL mistakes that cost me overnight outages.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-07-05">July 5, 2026</time> &bull; 8 min read &bull; ~1009 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Bind Node to localhost; let Nginx own 80/443</li>
+            <li>Always forward Host, X-Forwarded-For, and X-Forwarded-Proto</li>
+            <li>WebSockets need Upgrade headers and longer timeouts</li>
+            <li>Use fullchain.pem and reload Nginx after cert renewals</li>
+            <li>Serve static assets from Nginx when you can</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>Why Node should not face the public internet alone</h2>
+          <p>Node can terminate TLS, but I still put Nginx in front for static assets, rate limiting at the edge, predictable certificate renewal, and one place to terminate HTTP/2. It also lets me run multiple Node processes on different ports behind one hostname.</p>
+          <p>On an early project I bound Express to 0.0.0.0:443 with a hand-rolled cert reload. Renewal failed silently; browsers showed a scary interstitial for six hours before anyone noticed. Nginx + certbot’s deploy hook would have been boring and correct.</p>
+          <p>Another reason: connection handling. Nginx absorbs slow clients and keeps Node focused on app work. Under a modest bot scrape, that difference showed up as stable API latency instead of event-loop stalls.</p>
+          <p>Security groups and firewalls should only expose 80/443 on the public interface. Developers who SSH tunnel to :3000 for debugging sometimes leave the port open “for a bit.” That bit becomes months. Bind localhost and use a VPN or SSH tunnel instead.</p>
+
+          <h2>Minimal reverse proxy that actually works</h2>
+          <p>Bind Node to 127.0.0.1:3000. Nginx listens on 80/443 and proxies to that upstream. Always set Host, X-Real-IP, and X-Forwarded-For/Proto so your app logs and absolute URL builders see the real client and scheme.</p>
+          <p>If you forget X-Forwarded-Proto, OAuth redirect URIs and secure cookies break in subtle ways—HTTPS in the browser, http:// in your app’s redirect logic.</p>
+          <p>I keep upstream in its own block so I can add a second Node instance later without rewriting every location. keepalive on the upstream reduces churn for busy JSON APIs.</p>
+          <p>proxy_redirect and trailing slashes on proxy_pass matter. A slash at the end of proxy_pass changes path rewriting. I keep a comment above each location explaining whether paths are preserved. Silent path bugs waste more time than SSL.</p>
+          <pre><code>upstream node_app {
+  server 127.0.0.1:3000;
+  keepalive 32;
+}
+
+server {
+  listen 80;
+  server_name api.example.com;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  server_name api.example.com;
+
+  ssl_certificate     /etc/letsencrypt/live/api.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
+
+  location / {
+    proxy_pass http://node_app;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Connection &quot;&quot;;
+  }
+}</code></pre>
+
+          <h2>WebSockets and long requests</h2>
+          <p>Socket.IO and similar need Upgrade headers. Without them, the handshake falls back or fails. I also bump proxy_read_timeout for long-lived connections instead of accepting Nginx’s default 60s cutoffs.</p>
+          <p>File uploads and slow exports need higher proxy_read_timeout and client_max_body_size. I set body size per location so a public marketing site does not inherit a 50m upload limit meant for an admin API.</p>
+          <p>Health checks from a load balancer should hit Nginx, which then hits Node—or hit Node on a private interface. Do not open a second public port just for /health unless you know why.</p>
+          <pre><code>location /socket.io/ {
+  proxy_pass http://node_app;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection &quot;upgrade&quot;;
+  proxy_set_header Host $host;
+  proxy_read_timeout 86400;
+}
+
+location /api/uploads {
+  client_max_body_size 25m;
+  proxy_pass http://node_app;
+  proxy_request_buffering off;
+  proxy_read_timeout 300;
+}</code></pre>
+
+          <h2>SSL notes I write down for every server</h2>
+          <p>Use certbot with the nginx plugin or webroot. Prefer fullchain.pem, not cert.pem alone—missing intermediates cause mobile clients to fail while desktop Chrome looks fine. Enable a modern cipher suite and turn on OCSP stapling when you have time; HSTS only after you are sure HTTPS works everywhere.</p>
+          <p>Reload Nginx after renewals. Certbot usually installs a timer, but I still verify with `sudo nginx -t &amp;&amp; sudo systemctl reload nginx` after the first issuance. I once had a valid new cert on disk while Nginx kept serving the expired one until a manual reload.</p>
+          <p>For staging, use a real subdomain certificate, not a permanent exception in every teammate’s browser. Fake SSL in staging trains people to ignore warnings in production.</p>
+          <p>TLS 1.2+ only. Disable ancient ciphers. Mozilla’s intermediate profile is a sane default for most business apps. I keep a calendar reminder to revisit cipher config yearly because defaults rot.</p>
+          <p>I keep certificate expiry in monitoring with a 14-day warning. Calendars fail; alerts do not. The overnight outage I mentioned earlier would have been a daytime ticket with a simple probe.</p>
+          <ul>
+            <li>Redirect HTTP→HTTPS at Nginx, not only in Express</li>
+            <li>Trust proxy in Express: app.set(&#x27;trust proxy&#x27;, 1)</li>
+            <li>Serve static files from Nginx when possible to free Node</li>
+            <li>Limit body size explicitly (client_max_body_size) for upload APIs</li>
+            <li>Test certificate chain on a phone, not only desktop Chrome</li>
+          </ul>
+
+          <h2>Static files and gzip</h2>
+          <p>Let Nginx serve `/public` or `/dist` directly. Node should handle API routes. Enable gzip (or brotli if you install the module) for text assets. This alone dropped p95 TTFB on a marketing site I inherited because Node had been streaming every CSS file through Express middleware.</p>
+          <p>Fingerprinted assets get long cache headers. HTML stays short-cached or no-store if it bootstraps a SPA. Mixing those policies is how users run old JS against a new API.</p>
+          <p>Access logs at Nginx tell you the truth about bots and slow endpoints before app metrics do. Sample or ship them to your log stack; do not discover a scrape only when the disk fills.</p>
+          <pre><code>location /assets/ {
+  alias /var/www/app/dist/assets/;
+  access_log off;
+  expires 7d;
+  add_header Cache-Control &quot;public&quot;;
+}
+
+gzip on;
+gzip_types text/css application/javascript application/json image/svg+xml;</code></pre>
+
+          <h2>Deploy checklist I actually run</h2>
+          <p>Confirm Node listens on localhost only. Confirm `nginx -t` passes. Hit health endpoints through the public hostname, not localhost:3000. Check certificates with SSL Labs or `openssl s_client`. Watch error.log during the first traffic spike—502s usually mean Node crashed or the upstream port is wrong.</p>
+          <p>Keep a second upstream server line ready if you run two Node instances for zero-downtime restarts. Rolling restarts without a proxy is how I used to drop websocket clients mid-deploy.</p>
+          <p>Document the server inventory in the repo: ports, unit files, cert domains. Future-you on a page at 2am should not reconstruct the topology from `ps aux`.</p>
+          <p>After every deploy, curl -I https://your.domain and confirm the certificate dates and HSTS header if enabled. Automate that check in the deploy job if you can spare thirty seconds of CI.</p>
+
+          <h2>Rate limits and basic hardening</h2>
+          <p>limit_req_zone at Nginx stops the dumbest floods from reaching Node. It is not a WAF, but it buys time. I rate-limit login and password-reset locations more tightly than public GETs.</p>
+          <p>Hide version tokens in Server headers if your threat model cares. More importantly, return custom 502/504 pages so users see “we are redeploying” instead of a raw upstream error during restarts.</p>
+          <pre><code>limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+
+location /api/ {
+  limit_req zone=api_limit burst=20 nodelay;
+  proxy_pass http://node_app;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}</code></pre>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Bind Node to localhost; let Nginx own 80/443</li>
+            <li>Always forward Host, X-Forwarded-For, and X-Forwarded-Proto</li>
+            <li>WebSockets need Upgrade headers and longer timeouts</li>
+            <li>Use fullchain.pem and reload Nginx after cert renewals</li>
+            <li>Serve static assets from Nginx when you can</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="css-flexbox-vs-grid.html" class="btn btn-secondary">&larr; Flexbox vs CSS Grid: When I Use Each in Pr…</a>
+        <a href="redis-caching-patterns.html" class="btn btn-primary">Next: Redis Caching Patterns I Use: Cache-Aside,… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

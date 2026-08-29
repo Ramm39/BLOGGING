@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JWT Access and Refresh Tokens in Node/Express with httpOnly Cookies — BudhiWorks</title>
+  <meta name="description" content="How I implement short-lived access JWTs and rotating refresh tokens in Express, stored in httpOnly cookies, with concrete rotation and revocation notes.">
+  <link rel="canonical" href="https://budhiworks.com/articles/jwt-authentication-nodejs.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="JWT Access and Refresh Tokens in Node/Express with httpOnly Cookies — BudhiWorks">
+  <meta property="og:description" content="How I implement short-lived access JWTs and rotating refresh tokens in Express, stored in httpOnly cookies, with concrete rotation and revocation notes.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/jwt-authentication-nodejs.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="JWT authentication, refresh token, httpOnly cookie, Node.js Express, access token, token rotation">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-06-08">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Backend</span>
+          <h1 class="article-title">JWT Access and Refresh Tokens in Node/Express with httpOnly Cookies</h1>
+          <p class="article-lead">I stopped putting JWTs in localStorage after one XSS demo emptied a staging account. Here is the access plus refresh cookie pattern we use in production Express apps.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-06-08">June 8, 2026</time> &bull; 12 min read &bull; ~1000 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Prefer httpOnly cookies over localStorage for browser session tokens.</li>
+            <li>Keep access JWTs short-lived; persist opaque refresh tokens hashed in the DB.</li>
+            <li>Rotate refresh tokens and revoke the family on reuse.</li>
+            <li>Cookie auth needs a CSRF strategy with SameSite plus tokens for mutations.</li>
+            <li>Logout and sign out everywhere must revoke server-side refresh rows.</li>
+            <li>Serialize client silent-refresh so parallel 401s do not look like theft.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>Threat model in one paragraph</h2>
+          <p>Access tokens in localStorage are trivial to steal if any XSS lands. Tokens in memory-only JS are safer but disappear on refresh. httpOnly cookies keep tokens off document.cookie, and Secure plus SameSite reduce drive-by sends. XSS can still trigger authenticated requests from the victim&#x27;s browser — cookies are not magic — but they stop simple token exfiltration scripts.</p>
+          <p>I use a short-lived access JWT of 5 to 15 minutes and a longer refresh token of 7 to 30 days that we rotate and store hashed server-side. Stolen refresh tokens should not live forever.</p>
+          <p>Our pen-test writeup put it bluntly: with localStorage JWTs, a single reflected XSS stole sessions from three test accounts in under a minute. With httpOnly cookies, the same payload could still act as the user but could not exfiltrate a reusable bearer token to an attacker laptop. That trade is worth the CSRF work.</p>
+
+          <h2>Issuing tokens</h2>
+          <p>On login I verify password with bcrypt at cost 12, then mint an access JWT signed with HS256 or better RS256 or EdDSA in larger systems. Claims stay minimal: sub, role, iat, exp. No PII blobs. Refresh token is a random 32-plus byte string; we store sha256 of the token in Postgres with user_id, expires_at, replaced_by, and revoked_at.</p>
+          <p>Clock skew between API instances bit us once: tokens looked expired 30 seconds early. We allow a 30-second clockTolerance on verify, and we NTP-sync the fleet. Also rotate JWT_ACCESS_SECRET only with a dual-key verify window so deploys do not log everyone out at once.</p>
+          <pre><code>import jwt from &#x27;jsonwebtoken&#x27;;
+import crypto from &#x27;crypto&#x27;;
+
+const ACCESS_TTL = &#x27;10m&#x27;;
+const REFRESH_DAYS = 14;
+
+export function signAccessToken(user) {
+  return jwt.sign(
+    { sub: user.id, role: user.role },
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: ACCESS_TTL }
+  );
+}
+
+export function createRefreshToken() {
+  return crypto.randomBytes(48).toString(&#x27;base64url&#x27;);
+}
+
+export function hashToken(token) {
+  return crypto.createHash(&#x27;sha256&#x27;).update(token).digest(&#x27;hex&#x27;);
+}
+
+export function setAuthCookies(res, accessToken, refreshToken) {
+  const common = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === &#x27;production&#x27;,
+    sameSite: &#x27;lax&#x27;,
+    path: &#x27;/&#x27;,
+  };
+  res.cookie(&#x27;access_token&#x27;, accessToken, { ...common, maxAge: 10 * 60 * 1000 });
+  res.cookie(&#x27;refresh_token&#x27;, refreshToken, {
+    ...common,
+    path: &#x27;/auth&#x27;,
+    maxAge: REFRESH_DAYS * 24 * 60 * 60 * 1000,
+  });
+}</code></pre>
+
+          <h2>Middleware that reads the cookie</h2>
+          <p>I do not accept access tokens from query strings. Cookie or Authorization Bearer for API clients. Cookie path scoping for refresh under /auth limits accidental sends to every asset request — a mistake I made when both cookies shared path slash and every image request carried a refresh token.</p>
+          <p>Query-string tokens also end up in access logs, referrer headers, and browser history. We banned them in a security review after finding tokens in CDN logs.</p>
+          <pre><code>import cookieParser from &#x27;cookie-parser&#x27;;
+
+app.use(cookieParser());
+
+export function requireAuth(req, res, next) {
+  const header = req.headers.authorization;
+  const token =
+    (header &amp;&amp; header.startsWith(&#x27;Bearer &#x27;) &amp;&amp; header.slice(7)) ||
+    req.cookies.access_token;
+
+  if (!token) return res.status(401).json({ error: &#x27;unauthenticated&#x27; });
+
+  try {
+    req.user = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: &#x27;invalid_token&#x27; });
+  }
+}</code></pre>
+
+          <h2>Refresh with rotation</h2>
+          <p>POST /auth/refresh reads the refresh cookie, hashes it, looks up a non-revoked row, issues a new access plus refresh pair, marks the old refresh as replaced, and sets cookies again. If a previously replaced refresh is presented again, I revoke the whole family — classic reuse detection for token theft.</p>
+          <p>Without rotation, a leaked refresh token works until expiry. With rotation and reuse detection, we cut session abuse windows from days to minutes in one incident response drill.</p>
+          <p>Race condition note: two parallel tabs can refresh at the same millisecond. One wins; the other looks like reuse. We solve this with a short grace window of about 10 seconds where the previous refresh still works if replaced_by was set recently by the same family, or by serializing refresh with a per-user lock.</p>
+          <pre><code>app.post(&#x27;/auth/refresh&#x27;, async (req, res) =&gt; {
+  const raw = req.cookies.refresh_token;
+  if (!raw) return res.status(401).json({ error: &#x27;no_refresh&#x27; });
+
+  const row = await db.refreshTokens.findByHash(hashToken(raw));
+  if (!row || row.revoked_at || row.expires_at &lt; new Date()) {
+    return res.status(401).json({ error: &#x27;invalid_refresh&#x27; });
+  }
+  if (row.replaced_by) {
+    await db.refreshTokens.revokeFamily(row.family_id);
+    return res.status(401).json({ error: &#x27;reuse_detected&#x27; });
+  }
+
+  const user = await db.users.findById(row.user_id);
+  const access = signAccessToken(user);
+  const nextRefresh = createRefreshToken();
+  await db.refreshTokens.rotate(row.id, hashToken(nextRefresh), REFRESH_DAYS);
+  setAuthCookies(res, access, nextRefresh);
+  res.json({ ok: true });
+});</code></pre>
+
+          <h2>Silent refresh on the client</h2>
+          <p>The SPA keeps a fetch interceptor: on 401, try /auth/refresh once, retry the original request, and if refresh fails redirect to login. Without a single-flight mutex, five parallel 401s spawn five refreshes and trigger reuse detection. I gate refresh behind a shared promise.</p>
+          <pre><code>let refreshPromise = null;
+
+async function refreshOnce() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(&#x27;/auth/refresh&#x27;, {
+      method: &#x27;POST&#x27;,
+      credentials: &#x27;include&#x27;,
+    }).finally(() =&gt; {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function apiFetch(input, init) {
+  const res = await fetch(input, { ...init, credentials: &#x27;include&#x27; });
+  if (res.status !== 401) return res;
+  const refreshed = await refreshOnce();
+  if (!refreshed.ok) throw new Error(&#x27;session_expired&#x27;);
+  return fetch(input, { ...init, credentials: &#x27;include&#x27; });
+}</code></pre>
+
+          <h2>CSRF when cookies are involved</h2>
+          <p>Cookie auth reintroduces CSRF for state-changing requests. I use SameSite=Lax as a good default for most apps plus a double-submit CSRF token for mutating routes, or SameSite=Strict for sensitive admin tools that can tolerate harsher UX.</p>
+          <p>SPA on app.example.com and API on api.example.com needs careful cookie Domain and CORS credentials. Same-site under a parent domain is simpler when you can afford it.</p>
+
+          <h2>Cookie attributes I verify in staging</h2>
+          <p>Before calling a release done I open Application Cookies on staging and confirm: httpOnly checked, Secure on HTTPS, SameSite as designed, path scoped for refresh, and expiry matching TTL. I have shipped a missing Secure flag that worked on localhost HTTP and silently dropped cookies in production HTTPS redirects.</p>
+          <p>Cross-subdomain cookies need Domain=.example.com carefully. Too broad and every subdomain receives the session cookie. For native mobile clients we still issue Bearer access tokens in the JSON body and skip cookies. The same signing and refresh tables back both clients.</p>
+          <p>I log refresh outcomes as counters: success, expired, reuse_detected, missing. A spike in reuse_detected without a security incident usually means the client double-refresh race. Never log raw tokens — log a truncated hash prefix if you need correlation.</p>
+
+          <h2>Mistakes I will not repeat</h2>
+          <p>Storing refresh tokens plaintext in the DB. Using a 7-day access JWT to avoid refresh complexity. Putting secrets in the JWT payload and expecting them to stay secret. Forgetting to clear cookies on logout while only deleting the client store.</p>
+          <p>Logout must clear cookies with res.clearCookie and revoke the refresh row. For force-logout-all-devices, revoke all refresh families for that user_id. We expose that as a security settings action. Document the token TTLs in the security runbook so on-call can answer session questions without reading code at 2am.</p>
+          <ul>
+            <li>Access JWT: minutes, not days</li>
+            <li>Refresh: random opaque token, hashed at rest, rotated</li>
+            <li>httpOnly plus Secure plus scoped path</li>
+            <li>Reuse detection on refresh</li>
+            <li>Logout revokes server-side state, not only cookies</li>
+            <li>Single-flight client refresh to avoid false reuse alarms</li>
+          </ul>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Prefer httpOnly cookies over localStorage for browser session tokens.</li>
+            <li>Keep access JWTs short-lived; persist opaque refresh tokens hashed in the DB.</li>
+            <li>Rotate refresh tokens and revoke the family on reuse.</li>
+            <li>Cookie auth needs a CSRF strategy with SameSite plus tokens for mutations.</li>
+            <li>Logout and sign out everywhere must revoke server-side refresh rows.</li>
+            <li>Serialize client silent-refresh so parallel 401s do not look like theft.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="core-web-vitals-guide.html" class="btn btn-secondary">&larr; Core Web Vitals Guide: Practical LCP, INP,…</a>
+        <a href="docker-compose-for-developers.html" class="btn btn-primary">Next: Docker Compose for Local Node, Postgres, a… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

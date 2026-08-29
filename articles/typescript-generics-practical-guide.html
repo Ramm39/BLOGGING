@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Practical TypeScript Generics for APIs and React Props — BudhiWorks</title>
+  <meta name="description" content="Generics that earn their keep: typed API clients, reusable React list props, constraints, and the mistakes that made our types worse than any.">
+  <link rel="canonical" href="https://budhiworks.com/articles/typescript-generics-practical-guide.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Practical TypeScript Generics for APIs and React Props — BudhiWorks">
+  <meta property="og:description" content="Generics that earn their keep: typed API clients, reusable React list props, constraints, and the mistakes that made our types worse than any.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/typescript-generics-practical-guide.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="TypeScript generics, React props generics, typed fetch, generic constraints, TypeScript API client">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-06-28">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Frontend</span>
+          <h1 class="article-title">Practical TypeScript Generics for APIs and React Props</h1>
+          <p class="article-lead">I ignored generics for years and sprinkled as casts instead. Once we typed our API client and a few shared components properly, a whole class of production bugs became compile errors.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-06-28">June 28, 2026</time> &bull; 12 min read &bull; ~901 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>A generic apiGet T turns silent any into checked contracts at call sites.</li>
+            <li>Use extends constraints when the generic body reads fields.</li>
+            <li>Generic React list and select components preserve item types through callbacks.</li>
+            <li>keyof patterns catch invalid field names at compile time.</li>
+            <li>Keep generics shallow — unclear type params are worse than a bit of duplication.</li>
+            <li>Result T E makes expected failure paths visible at the type level.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>Start from a pain point, not from theory</h2>
+          <p>Our untyped api.get to /users returned Promise any. Call sites assumed name existed; the backend renamed it to fullName. Runtime crash, green CI. A generic get T would have forced the call site to declare the expected shape — still a contract, but now checked when we updated shared types from OpenAPI.</p>
+          <p>Generics are functions and types parameterized by other types. I introduce them when the same logic works for multiple shapes and I want the output type to follow the input.</p>
+          <p>After we generated types from OpenAPI and threaded them through apiGet User, that class of rename bugs became tsc failures in CI. We caught three similar mismatches in the first month — all would have been production 500s before.</p>
+
+          <h2>Typed fetch wrapper</h2>
+          <p>This is the first generic I add to every TypeScript frontend. The caller passes the response type; errors stay explicit.</p>
+          <p>I also add apiPost with body and response type parameters so request bodies are checked. Without that, we typed responses carefully and still sent wrong payloads.</p>
+          <pre><code>export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+export async function apiGet&lt;T&gt;(path: string, init?: RequestInit): Promise&lt;T&gt; {
+  const res = await fetch(path, {
+    ...init,
+    headers: { Accept: &#x27;application/json&#x27;, ...init?.headers },
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, await res.text());
+  }
+  return res.json() as Promise&lt;T&gt;;
+}
+
+// usage
+type User = { id: string; fullName: string };
+const user = await apiGet&lt;User&gt;(&#x27;/api/users/me&#x27;);
+console.log(user.fullName);</code></pre>
+
+          <h2>Constraints beat unconstrained T</h2>
+          <p>If you need to read id inside the generic function, constrain T. Unconstrained T cannot safely access properties — and if you cast anyway, you lied to the compiler.</p>
+          <p>Multiple constraints use intersection types. Keep them readable; if the constraint needs three lines, extract a named interface.</p>
+          <pre><code>function byId&lt;T extends { id: string }&gt;(items: T[], id: string): T | undefined {
+  return items.find((item) =&gt; item.id === id);
+}
+
+const users = [
+  { id: &#x27;1&#x27;, fullName: &#x27;Ram&#x27; },
+  { id: &#x27;2&#x27;, fullName: &#x27;Ada&#x27; },
+];
+const found = byId(users, &#x27;2&#x27;); // type includes fullName</code></pre>
+
+          <h2>React props that preserve item types</h2>
+          <p>Shared Select and Table components often erase types with items any array. A generic component keeps item type through render props.</p>
+          <p>Inference usually works when items is passed inline. If TypeScript widens to a useless type, pass an explicit type argument once. Prefer inference first.</p>
+          <pre><code>type ListProps&lt;T&gt; = {
+  items: T[];
+  keyOf: (item: T) =&gt; string;
+  children: (item: T) =&gt; React.ReactNode;
+};
+
+export function List&lt;T&gt;({ items, keyOf, children }: ListProps&lt;T&gt;) {
+  return (
+    &lt;ul&gt;
+      {items.map((item) =&gt; (
+        &lt;li key={keyOf(item)}&gt;{children(item)}&lt;/li&gt;
+      ))}
+    &lt;/ul&gt;
+  );
+}
+
+// inference works — item is User inside children
+&lt;List
+  items={users}
+  keyOf={(u) =&gt; u.id}
+  children={(u) =&gt; &lt;span&gt;{u.fullName}&lt;/span&gt;}
+/&gt;;</code></pre>
+
+          <h2>Defaults and keyof patterns</h2>
+          <p>Generic defaults help when most call sites share a type. keyof plus mapped types power type-safe sorting helpers. I keep these shallow — deep conditional type wizardry slowed our compile times and confused juniors more than it helped.</p>
+          <p>A Pick or Omit wrapper around API responses is often clearer than a custom conditional type. Reach for the built-ins before inventing a new type-level DSL.</p>
+          <pre><code>function sortBy&lt;T, K extends keyof T&gt;(items: T[], key: K): T[] {
+  return [...items].sort((a, b) =&gt; (a[key] &gt; b[key] ? 1 : -1));
+}
+
+sortBy(users, &#x27;fullName&#x27;);
+// sortBy(users, &#x27;nope&#x27;); // compile error</code></pre>
+
+          <h2>Result types instead of throwing everywhere</h2>
+          <p>Another place generics shine is a small Result T E for expected failures. Call sites must handle ok false instead of hoping a try/catch exists three layers up.</p>
+          <p>We use this for form validation and for API calls that can 404 without being exceptional. Throwing remains for truly unexpected failures.</p>
+          <pre><code>type Result&lt;T, E = string&gt; =
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+
+async function loadUser(id: string): Promise&lt;Result&lt;User, &#x27;not_found&#x27; | &#x27;network&#x27;&gt;&gt; {
+  try {
+    const user = await apiGet&lt;User&gt;(`/api/users/${id}`);
+    return { ok: true, value: user };
+  } catch (err) {
+    if (err instanceof ApiError &amp;&amp; err.status === 404) {
+      return { ok: false, error: &#x27;not_found&#x27; };
+    }
+    return { ok: false, error: &#x27;network&#x27; };
+  }
+}</code></pre>
+
+          <h2>Generic hooks without pain</h2>
+          <p>Custom hooks benefit from generics the same way components do. useLocalStorage T should return T or undefined and accept values that know T. Without that, every call site casts.</p>
+          <p>I keep hook generics to one or two type parameters. When a hook needs four type params, it is usually doing too much and should split into smaller hooks or accept a typed adapter object.</p>
+          <pre><code>function useLocalStorage&lt;T&gt;(key: string, initial: T) {
+  const [value, setValue] = useState&lt;T&gt;(() =&gt; {
+    if (typeof window === &#x27;undefined&#x27;) return initial;
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : initial;
+  });
+
+  useEffect(() =&gt; {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue] as const;
+}
+
+const [draft, setDraft] = useLocalStorage&lt;{ fullName: string }&gt;(&#x27;draft&#x27;, { fullName: &#x27;&#x27; });</code></pre>
+
+          <h2>Mapping API DTOs to domain types</h2>
+          <p>Generated OpenAPI types are often noisy. I write small mappers such as toUser from UserDto. Generics help for lists when composed, but inventing a hyper-abstract Mapper with four type params helped nobody. We deleted one of those frameworks after onboarding stalled.</p>
+          <p>Zod schemas can infer types with z.infer typeof schema, which often removes the need for a hand-written interface plus a generic parse helper. I prefer schema-first when validation already exists at the boundary.</p>
+
+          <h2>Mistakes that made types worse</h2>
+          <p>Defaulting T to any silently undoes safety. Over-generic components with five type params nobody can invoke. Returning T or any from a helper. Using generics where a simple union of two shapes was clearer.</p>
+          <p>We also abused React.FC with generics inconsistently; nowadays we type props directly on the function. Measure complexity: if the generic needs a paragraph of explanation in the PR, consider two named functions instead.</p>
+          <p>Compile-time cost is real. A few heavy conditional types in hot paths added seconds to tsc on our monorepo. We simplified and CI got about 20 percent faster on the typecheck job. My bar for merging a new generic helper: at least three call sites, a constraint that matches real field access, and a PR description that shows a before/after compile error it prevents.</p>
+          <ul>
+            <li>Add generics when output types should track input types</li>
+            <li>Constrain with extends when you read properties</li>
+            <li>Prefer inference at call sites over mandatory type arguments</li>
+            <li>Avoid defaulting T to any</li>
+            <li>Generate API types when possible instead of hand-rolling large interfaces</li>
+            <li>Prefer Result or union handling for expected failures over unchecked throws</li>
+          </ul>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>A generic apiGet T turns silent any into checked contracts at call sites.</li>
+            <li>Use extends constraints when the generic body reads fields.</li>
+            <li>Generic React list and select components preserve item types through callbacks.</li>
+            <li>keyof patterns catch invalid field names at compile time.</li>
+            <li>Keep generics shallow — unclear type params are worse than a bit of duplication.</li>
+            <li>Result T E makes expected failure paths visible at the type level.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="git-rebase-vs-merge.html" class="btn btn-secondary">&larr; Git Rebase vs Merge: A Safe Workflow We Us…</a>
+        <a href="css-flexbox-vs-grid.html" class="btn btn-primary">Next: Flexbox vs CSS Grid: When I Use Each in Pr… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

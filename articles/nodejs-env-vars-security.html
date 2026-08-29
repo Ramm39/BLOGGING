@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Environment Variables Security for Node Apps: Lessons from Leaked Secrets — BudhiWorks</title>
+  <meta name="description" content="Practical rules for storing, loading, and rotating secrets in Node.js without leaking them through logs, git, or Docker images.">
+  <link rel="canonical" href="https://budhiworks.com/articles/nodejs-env-vars-security.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Environment Variables Security for Node Apps: Lessons from Leaked Secrets — BudhiWorks">
+  <meta property="og:description" content="Practical rules for storing, loading, and rotating secrets in Node.js without leaking them through logs, git, or Docker images.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/nodejs-env-vars-security.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="Node.js environment variables, dotenv security, secrets management, process.env, .env.example, credential rotation">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-08-05">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Backend</span>
+          <h1 class="article-title">Environment Variables Security for Node Apps: Lessons from Leaked Secrets</h1>
+          <p class="article-lead">Most Node secret leaks I investigate are not exotic exploits. They are .env files in git, DEBUG logs printing process.env, and Docker layers that baked credentials into the image.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-08-05">August 5, 2026</time> &bull; 8 min read &bull; ~1178 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Env vars deliver secrets; they do not protect them from logs, children, or images.</li>
+            <li>Commit .env.example only; keep real .env files out of git and Docker layers.</li>
+            <li>Validate required env at boot in one module and fail fast on missing keys.</li>
+            <li>Never log process.env; log a redacted summary of non-secret config.</li>
+            <li>Inject secrets at runtime in production—prefer a secret manager over files on disk.</li>
+            <li>Isolate credentials per service and practice rotation before you need it.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>The leak that made me paranoid about process.env</h2>
+          <p>A junior engineer added console.log({ env: process.env }) while debugging a Stripe webhook. The log shipped to our hosted aggregator. Within an hour the dashboard showed API keys, database URLs, and a JWT secret sitting in plaintext search results. We rotated everything. It cost a Saturday.</p>
+          <p>Environment variables are convenient, not safe by default. They are readable by the process, often inherited by child processes, and easy to dump accidentally. Treat them as a delivery mechanism for secrets, then minimize how long and how widely those values exist in memory and logs.</p>
+          <p>Secret scanners in CI are cheap insurance. They will not catch everything, but they stop the classic accidental commit.</p>
+
+          <h2>What belongs in env vars—and what does not</h2>
+          <p>I put deployment-specific config and short-lived credentials in the environment: database URLs, API keys, feature flags that differ per env. I do not put large JSON blobs, private keys longer than necessary, or anything that should be different per request.</p>
+          <p>Public config can live in committed files. Secrets must not. The failure mode is mixing them: one “config” object that includes both NODE_ENV and STRIPE_SECRET_KEY, then logging the whole object.</p>
+          <ul>
+            <li>OK in env: DB_URL, REDIS_URL, API keys, signing secrets</li>
+            <li>Commit freely: port defaults, feature names, non-secret timeouts</li>
+            <li>Never commit: .env with real values, service account JSON, PEM files</li>
+            <li>Prefer a secret manager for production; env injection at deploy time</li>
+          </ul>
+
+          <h2>Local dotenv without polluting git</h2>
+          <p>I still use dotenv locally. Production never depends on a .env file on disk. The app reads process.env that the platform injects. That split keeps “works on my laptop” from becoming “we SCP a secrets file onto the box.”</p>
+          <p>Commit .env.example with placeholder values and comments. Add .env and .env.*.local to .gitignore before the first commit. I also add a pre-commit secret scan on the team repo after watching someone force-add a .env “just this once.”</p>
+          <pre><code># .env.example — safe to commit
+NODE_ENV=development
+PORT=3000
+DATABASE_URL=postgres://user:pass@localhost:5432/app
+JWT_SECRET=replace-me-with-long-random
+STRIPE_SECRET_KEY=sk_test_replace_me
+
+# .gitignore
+.env
+.env.*
+!.env.example</code></pre>
+
+          <h2>Load once, validate early, never print</h2>
+          <p>I centralize env loading in one module. It fails fast if required keys are missing. Spreading process.env.FOO across fifty files makes it impossible to know what is required for boot.</p>
+          <p>Validation with zod or joi catches empty strings and wrong types before the server accepts traffic. That is better than a cryptic failure deep in a Stripe call at 2 a.m.</p>
+          <pre><code>import { z } from &#x27;zod&#x27;;
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum([&#x27;development&#x27;, &#x27;test&#x27;, &#x27;production&#x27;]),
+  PORT: z.coerce.number().int().positive().default(3000),
+  DATABASE_URL: z.string().url(),
+  JWT_SECRET: z.string().min(32),
+  STRIPE_SECRET_KEY: z.string().startsWith(&#x27;sk_&#x27;),
+});
+
+export const env = EnvSchema.parse(process.env);
+
+// Never do this:
+// logger.info(&#x27;boot&#x27;, { env });
+
+export function redactedEnvSummary() {
+  return {
+    NODE_ENV: env.NODE_ENV,
+    PORT: env.PORT,
+    DATABASE_URL: env.DATABASE_URL.replace(/:\/\/.*@/, &#x27;://***@&#x27;),
+    JWT_SECRET: &#x27;[redacted]&#x27;,
+    STRIPE_SECRET_KEY: &#x27;[redacted]&#x27;,
+  };
+}</code></pre>
+
+          <h2>Docker and CI traps</h2>
+          <p>ENV lines in Dockerfiles with real secrets bake values into image layers forever. Use runtime -e flags, orchestration secrets, or build args only for non-secrets. I have pulled “old” images from a registry and found keys from a previous customer still in the history.</p>
+          <p>In CI, map secrets from the vault or GitHub Actions secrets into env for the job. Do not echo them in scripts. Mask them in the CI UI. Be careful with set -x in bash—it prints expanded variables.</p>
+          <p>Child processes inherit the full environment. If you spawn a CLI tool you do not trust, scrub the env you pass it.</p>
+          <p>Build args in Docker are visible in image history. Never pass secrets as build-arg “just for compile time” unless you use multi-stage builds that truly discard them—and even then prefer runtime injection.</p>
+          <pre><code># Bad: secret baked into image
+# ENV STRIPE_SECRET_KEY=sk_live_...
+
+# Better: inject at runtime
+# docker run -e STRIPE_SECRET_KEY --env-file /run/secrets/app.env myapp
+
+# In Node when spawning untrusted tools:
+import { spawn } from &#x27;node:child_process&#x27;;
+spawn(&#x27;some-tool&#x27;, [], {
+  env: { PATH: process.env.PATH, HOME: process.env.HOME },
+});</code></pre>
+
+          <h2>Rotation and least privilege</h2>
+          <p>Assume every secret will eventually leak. Design for rotation: short TTLs where the provider allows it, dual-key windows for JWT signing, and runbooks that do not require a full outage.</p>
+          <p>Give each service its own credentials. A marketing site should not share the production database user that can DROP TABLE. When the marketing deploy pipeline leaked, isolation saved the core API.</p>
+
+          <h2>Checklist I run before every Node release</h2>
+          <p>I keep this boring and repeatable. Boring is the point.</p>
+          <ul>
+            <li>No .env with real secrets in the repo or Docker image</li>
+            <li>Required env validated at boot with clear errors</li>
+            <li>Log redaction helpers used; no raw process.env dumps</li>
+            <li>CI secrets masked; no set -x around secret expansion</li>
+            <li>Production secrets from a manager or platform injection</li>
+            <li>Rotation steps documented for DB, JWT, and payment keys</li>
+          </ul>
+
+          <h2>Twelve-factor habits that still apply</h2>
+          <p>Config via environment remains right for 12-factor style apps. The update for 2026 is that production secrets increasingly come from a manager injected as env at process start, not from a long-lived file on disk. The process still sees process.env; the operators stop copying .env around Slack.</p>
+          <p>I keep a written inventory of every secret the app needs, who owns rotation, and the blast radius if it leaks. When the Stripe key leaked in logs, that inventory cut our response time: we knew exactly which services to restart and which dashboards to watch for fraud.</p>
+          <p>For monorepos, each package gets its own required env schema. Sharing one giant env object across web, worker, and CLI guarantees the CLI inherits production database credentials it never needed.</p>
+
+          <h2>Runtime hardening around secrets in memory</h2>
+          <p>You cannot fully erase secrets from a Node process, but you can reduce exposure. Avoid putting secrets on the prototype of widely logged objects. Prefer short-lived clients that close. Do not attach API keys to global.graphqlContext dumps used in error pages.</p>
+          <p>In workers, clear job payloads that included credentials after use when you control the queue schema. Bull and similar systems persist job data—never store raw secrets inside job JSON.</p>
+          <p>If a secret might have leaked, rotate first and investigate second. Argument about “maybe the log filter caught it” wastes the window attackers need.</p>
+          <ul>
+            <li>Inventory secrets with owners and rotation owners</li>
+            <li>Per-package env schemas in monorepos</li>
+            <li>No secrets in job payloads or error page dumps</li>
+            <li>Rotate on suspicion, then do forensics</li>
+          </ul>
+
+          <h2>Example: stripping secrets from error reports</h2>
+          <p>Error trackers love to serialize the world. I keep a denylist of env key substrings—SECRET, TOKEN, PASSWORD, KEY, PRIVATE—and scrub matching values before events leave the process. Framework defaults are not enough; custom context objects still leak.</p>
+          <p>I also scrub Authorization headers and cookie values in HTTP error breadcrumbs. A single 500 on /checkout should not upload a session token to a SaaS you forgot was enabled in staging.</p>
+          <pre><code>const SECRETISH = /(secret|token|password|passwd|api[_-]?key|private)/i;
+
+function scrub(value) {
+  if (value == null) return value;
+  if (Array.isArray(value)) return value.map(scrub);
+  if (typeof value === &#x27;object&#x27;) {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = SECRETISH.test(k) ? &#x27;[redacted]&#x27; : scrub(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+// Sentry-style beforeSend
+function beforeSend(event) {
+  event.extra = scrub(event.extra);
+  event.contexts = scrub(event.contexts);
+  return event;
+}</code></pre>
+
+          <h2>Team process that keeps secrets boring</h2>
+          <p>Onboarding docs should show how to get local secrets from 1Password or the company vault—not from a zip file in Drive. Shared .env files in chat are a process failure.</p>
+          <p>When someone leaves the team, rotate shared secrets they could access. Individual cloud IAM keys are easier to revoke than a single DATABASE_URL everyone copied.</p>
+          <p>I schedule a quarterly secret review: list env keys in production, confirm each is still needed, confirm rotation dates. Unused keys get deleted. Unused credentials still unlock systems.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Env vars deliver secrets; they do not protect them from logs, children, or images.</li>
+            <li>Commit .env.example only; keep real .env files out of git and Docker layers.</li>
+            <li>Validate required env at boot in one module and fail fast on missing keys.</li>
+            <li>Never log process.env; log a redacted summary of non-secret config.</li>
+            <li>Inject secrets at runtime in production—prefer a secret manager over files on disk.</li>
+            <li>Isolate credentials per service and practice rotation before you need it.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="api-rate-limiting.html" class="btn btn-secondary">&larr; API Rate Limiting with Token Buckets and R…</a>
+        <a href="mongodb-aggregation-pipeline.html" class="btn btn-primary">Next: MongoDB Aggregation Pipelines I Actually U… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

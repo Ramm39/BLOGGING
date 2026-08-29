@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Next.js App Router Data Fetching: fetch, Cache, and revalidate Patterns — BudhiWorks</title>
+  <meta name="description" content="Practical App Router patterns for cached fetch, revalidate, no-store dynamic data, and when I reach for Server Actions — based on shipping Next.js 14/15 apps.">
+  <link rel="canonical" href="https://budhiworks.com/articles/nextjs-app-router-data-fetching.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Next.js App Router Data Fetching: fetch, Cache, and revalidate Patterns — BudhiWorks">
+  <meta property="og:description" content="Practical App Router patterns for cached fetch, revalidate, no-store dynamic data, and when I reach for Server Actions — based on shipping Next.js 14/15 apps.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/nextjs-app-router-data-fetching.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="Next.js App Router, fetch cache, revalidate, no-store, Server Components, Server Actions">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-06-18">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Frontend</span>
+          <h1 class="article-title">Next.js App Router Data Fetching: fetch, Cache, and revalidate Patterns</h1>
+          <p class="article-lead">App Router caching surprised us in production: a live admin page served stale inventory for 60 seconds. Here is how I choose fetch options on purpose.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-06-18">June 18, 2026</time> &bull; 12 min read &bull; ~994 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Treat every App Router fetch as needing an explicit cache policy.</li>
+            <li>Use time-based revalidate for public content; tags for editor-driven updates.</li>
+            <li>Personalized and financial data should use no-store or force-dynamic.</li>
+            <li>Server Components for initial HTML; client caches for interactive freshness.</li>
+            <li>Stale bugs can live in Next caches, the browser, or your CDN — check all three.</li>
+            <li>Validate Server Action input with Zod and share business logic with other entry points.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>Default mental model</h2>
+          <p>In the App Router, fetch in Server Components can be cached and deduplicated. That is great for marketing pages and terrible for per-user dashboards if you leave defaults wrong. I treat every fetch as needing an explicit caching policy in code review.</p>
+          <p>Rule of thumb I use: public, slow-changing content gets cache plus revalidate. User-specific or money-adjacent data gets cache no-store or export const dynamic equals force-dynamic. Mixed pages get segment config plus tagged revalidation.</p>
+          <p>Next version upgrades sometimes change default caching behavior. After one upgrade, a previously dynamic route started caching. We now assert cache headers in an integration test for account routes so upgrades cannot silently flip policy.</p>
+
+          <h2>Static-ish content with time-based revalidation</h2>
+          <p>Blog indexes and pricing pages tolerate slight staleness. revalidate 60 means ISR-style refresh at most once per minute per deployment semantics. We saw TTFB drop from about 400ms to about 80ms on a docs landing page after caching the CMS fetch.</p>
+          <p>Do not use a 60-second window for content that editors expect to appear instantly. Either shorten revalidate for that segment or use on-demand tags. Mixing feels-live marketing copy with a 5-minute revalidate creates trust issues with the content team.</p>
+          <pre><code>// app/blog/page.tsx
+async function getPosts() {
+  const res = await fetch(&#x27;https://cms.example.com/posts&#x27;, {
+    next: { revalidate: 60, tags: [&#x27;posts&#x27;] },
+  });
+  if (!res.ok) throw new Error(&#x27;Failed to load posts&#x27;);
+  return res.json();
+}
+
+export default async function BlogIndex() {
+  const posts = await getPosts();
+  return (
+    &lt;ul&gt;
+      {posts.map((p) =&gt; (
+        &lt;li key={p.slug}&gt;{p.title}&lt;/li&gt;
+      ))}
+    &lt;/ul&gt;
+  );
+}</code></pre>
+
+          <h2>On-demand revalidation with tags</h2>
+          <p>When editors publish, waiting 60s is awkward. We tag fetches and call revalidateTag posts from a webhook Server Action or route handler after CMS publish. That cut where-is-my-post support pings to near zero.</p>
+          <p>Protect the webhook with a shared secret and rate limiting. An open revalidate endpoint is a cheap DoS against your origin and cache.</p>
+          <pre><code>// app/api/revalidate/route.ts
+import { revalidateTag } from &#x27;next/cache&#x27;;
+import { NextRequest, NextResponse } from &#x27;next/server&#x27;;
+
+export async function POST(req: NextRequest) {
+  const secret = req.headers.get(&#x27;x-revalidate-secret&#x27;);
+  if (secret !== process.env.REVALIDATE_SECRET) {
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+  revalidateTag(&#x27;posts&#x27;);
+  return NextResponse.json({ revalidated: true });
+}</code></pre>
+
+          <h2>Dynamic user data</h2>
+          <p>Account pages that read session cookies must not serve another user&#x27;s cache entry. I use cache no-store on those fetches and read auth in the server component. Alternatively set dynamic to force-dynamic at the route segment.</p>
+          <p>The inventory bug I mentioned: we had cached fetch to /api/stock without realizing the route was shared. Two users saw each other&#x27;s warehouse counts briefly. Fix was no-store plus moving stock behind an authenticated route handler.</p>
+          <p>After the fix we added a regression test that fetches the same route as two sessions and asserts different bodies. Cache bugs are silent without tests like that.</p>
+          <pre><code>async function getBalance(userId: string) {
+  const res = await fetch(`${process.env.API_URL}/balance/${userId}`, {
+    cache: &#x27;no-store&#x27;,
+    headers: { Authorization: `Bearer ${process.env.INTERNAL_TOKEN}` },
+  });
+  return res.json();
+}</code></pre>
+
+          <h2>Server Actions for mutations</h2>
+          <p>I use Server Actions for form posts that do not need a separate REST surface: update profile, create comment, toggle flag. Keep them thin — validate with Zod, call a service function, revalidate tags, redirect.</p>
+          <p>Do not put complex business logic only inside the action file if other entry points such as API routes and jobs need the same rules. Extract a shared service so authorization checks stay consistent.</p>
+          <pre><code>&#x27;use server&#x27;;
+
+import { z } from &#x27;zod&#x27;;
+import { revalidatePath } from &#x27;next/cache&#x27;;
+import { updateDisplayName } from &#x27;@/server/users&#x27;;
+
+const schema = z.object({
+  displayName: z.string().trim().min(2).max(80),
+});
+
+export async function saveProfile(formData: FormData) {
+  const parsed = schema.safeParse({
+    displayName: formData.get(&#x27;displayName&#x27;),
+  });
+  if (!parsed.success) return { error: &#x27;invalid_name&#x27; };
+
+  await updateDisplayName(parsed.data.displayName);
+  revalidatePath(&#x27;/settings/profile&#x27;);
+  return { ok: true };
+}</code></pre>
+
+          <h2>Streaming and Suspense boundaries</h2>
+          <p>For pages with a fast shell and a slow panel I wrap the slow Server Component in Suspense so the shell streams first. Users see navigation chrome and a skeleton while the slow fetch completes. That improved perceived performance even when total time-to-full-content stayed similar.</p>
+          <p>I avoid putting the entire page behind one slow await at the top of the tree. A single blocking await getEverything defeats streaming. Split fetches by section. Error boundaries around streamed sections stop one failing widget from blanking the whole route — we learned that when recommendations 500ed and took the product page down.</p>
+
+          <h2>Auth cookies and the cache</h2>
+          <p>Reading cookies in a layout opts routes into dynamic rendering. That is correct for dashboards and easy to forget on a shared root layout that also wraps marketing pages. We split layouts so public marketing stays statically cacheable while app routes stay dynamic.</p>
+          <p>If you must read cookies deep in a tree, be intentional about which segments inherit dynamic behavior. Accidental dynamic marketing pages raised origin load and erased the TTFB wins from ISR.</p>
+          <pre><code>// app/(marketing)/layout.tsx — no cookies(), cache-friendly
+export default function MarketingLayout({ children }) {
+  return &lt;div className=&quot;marketing&quot;&gt;{children}&lt;/div&gt;;
+}
+
+// app/(app)/layout.tsx — auth-aware, dynamic
+import { cookies } from &#x27;next/headers&#x27;;
+
+export default async function AppLayout({ children }) {
+  const session = cookies().get(&#x27;access_token&#x27;);
+  return &lt;AppShell signedIn={Boolean(session)}&gt;{children}&lt;/AppShell&gt;;
+}</code></pre>
+
+          <h2>Client fetch versus Server Components</h2>
+          <p>I keep initial data on the server when SEO or first paint matters. Client components use SWR or React Query for interactive polling filters. Duplicating the same REST call on server and client without a shared contract caused drift — we now generate types from OpenAPI and share the path helpers.</p>
+          <p>Server Actions work well for mutations with progressive enhancement. I still validate on the server with Zod; never trust the action payload shape alone.</p>
+          <ul>
+            <li>Be explicit: revalidate, no-store, or force-dynamic</li>
+            <li>Tag cached fetches for webhook-driven updates</li>
+            <li>Never cache personalized responses under a shared key</li>
+            <li>Prefer Server Components for first paint; client libraries for live interactivity</li>
+            <li>Protect revalidate endpoints with a secret</li>
+            <li>Regression-test personalized routes across two sessions</li>
+          </ul>
+
+          <h2>Debugging why is this stale</h2>
+          <p>Check whether you are looking at the Full Route Cache, the Data Cache, or the browser cache. Next.js Dev overlay and logging fetch cache hits in development help. In one case the CDN in front of us cached HTML despite no-store on fetch — we had to set Cache-Control on the response headers from the route.</p>
+          <p>Document the caching choice in a one-line comment above non-obvious fetches. My incident checklist order: response headers from the browser, Next fetch cache tags, CDN purge, whether the deploy rolled out to all regions. Skipping the CDN step wasted an hour once. When in doubt I draw three boxes — Data Cache, Full Route Cache, CDN — and mark where the stale bytes live.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Treat every App Router fetch as needing an explicit cache policy.</li>
+            <li>Use time-based revalidate for public content; tags for editor-driven updates.</li>
+            <li>Personalized and financial data should use no-store or force-dynamic.</li>
+            <li>Server Components for initial HTML; client caches for interactive freshness.</li>
+            <li>Stale bugs can live in Next caches, the browser, or your CDN — check all three.</li>
+            <li>Validate Server Action input with Zod and share business logic with other entry points.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="react-useeffect-common-mistakes.html" class="btn btn-secondary">&larr; React useEffect Mistakes I Keep Reviewing …</a>
+        <a href="postgresql-indexes-explained.html" class="btn btn-primary">Next: PostgreSQL Indexes Explained: When B-tree … &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

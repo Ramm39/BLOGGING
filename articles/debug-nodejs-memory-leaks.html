@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debugging Node.js Memory Leaks with Heap Snapshots — BudhiWorks</title>
+  <meta name="description" content="How I confirm a Node memory leak, take heap snapshots, compare retainers, and fix the usual suspects: caches, listeners, and closed-over requests.">
+  <link rel="canonical" href="https://budhiworks.com/articles/debug-nodejs-memory-leaks.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Debugging Node.js Memory Leaks with Heap Snapshots — BudhiWorks">
+  <meta property="og:description" content="How I confirm a Node memory leak, take heap snapshots, compare retainers, and fix the usual suspects: caches, listeners, and closed-over requests.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/debug-nodejs-memory-leaks.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="Node.js memory leak, heap snapshot, Chrome DevTools, process.memoryUsage, EventEmitter leak, clinic heapprofiler">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-08-16">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Backend</span>
+          <h1 class="article-title">Debugging Node.js Memory Leaks with Heap Snapshots</h1>
+          <p class="article-lead">When a Node service climbs from 200MB to 2GB over a day, guessing wastes time. Here is the heap-snapshot workflow I use to find what is retaining memory.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-08-16">August 16, 2026</time> &bull; 9 min read &bull; ~1141 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Confirm a leak with steady load plus rising heap across idle/GC—not a single RSS spike.</li>
+            <li>Reproduce with a script before taking snapshots so comparisons are meaningful.</li>
+            <li>Compare two heap snapshots and follow retainer chains to the owning cache or listener.</li>
+            <li>Bound in-process caches; prefer TTL/LRU over unbounded Maps.</li>
+            <li>Unsubscribe listeners and clear timers per connection lifecycle.</li>
+            <li>Guard heapdump endpoints and add soak-test memory alerts to catch regressions.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>Symptoms that are not always leaks</h2>
+          <p>RSS climbing under load can be V8 holding onto heap after a burst, buffers in the kernel, or a real leak. I do not declare a leak until memory keeps rising across idle periods or after forced GC, and request rates are steady.</p>
+          <p>First metrics: process.memoryUsage(), container memory limit events, and GC pause time if you expose it. If heapUsed sawtooths but returns to a baseline after idle, you may just need a larger heap or better caching policy—not a hunt for retainers.</p>
+          <pre><code>setInterval(() =&gt; {
+  const m = process.memoryUsage();
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    rss: m.rss,
+    heapTotal: m.heapTotal,
+    heapUsed: m.heapUsed,
+    external: m.external,
+  }));
+}, 30000);</code></pre>
+
+          <h2>Reproduce before you snapshot</h2>
+          <p>I build a script that hits the suspected route in a loop with realistic payloads. Without a repro, snapshots show noise. With a repro, the retained size delta between snapshot A and B screams.</p>
+          <p>Run against a staging instance with production-like data volume. Tiny fixtures hide leaks in caches keyed by customer id.</p>
+          <p>Keep the repro script in the repo under scripts/leak-repro.js so the next engineer does not reinvent load generation.</p>
+
+          <h2>Taking heap snapshots</h2>
+          <p>For local debugging I start Node with --inspect and use Chrome DevTools Memory tab. Take a snapshot at idle baseline, run the load script, force a minor wait, take another snapshot, then compare.</p>
+          <p>In production-like containers I use heapdump or the inspector protocol behind an authenticated admin endpoint that only ops can hit. Never expose unauthenticated snapshot endpoints.</p>
+          <pre><code># Local
+node --inspect=0.0.0.0:9229 server.js
+
+# Or write a snapshot on demand (protect this route)
+import v8 from &#x27;node:v8&#x27;;
+import fs from &#x27;node:fs&#x27;;
+
+app.post(&#x27;/admin/heapdump&#x27;, requireAdmin, (req, res) =&gt; {
+  const file = `/tmp/heap-${Date.now()}.heapsnapshot`;
+  const snapshotStream = v8.writeHeapSnapshot(file);
+  res.json({ file: snapshotStream });
+});</code></pre>
+
+          <h2>Reading the comparison</h2>
+          <p>In DevTools, compare snapshots and sort by retained size delta. Look for arrays, maps, and detached DOM-like structures—though on the server it is usually Maps, arrays of request context, or sockets.</p>
+          <p>Click through retainer chains. Ask: who still points at this object? Common answers: a module-level Map, an EventEmitter listener list, a global cache without TTL, or a closure holding the entire Express req.</p>
+
+          <h2>Leaks I keep finding</h2>
+          <p>Unbounded caches: const cache = new Map() keyed by userId with no eviction. Fix with LRU and a max size, or Redis with TTL.</p>
+          <p>EventEmitter listener leaks: subscribe per request to a shared bus and forget to unsubscribe. MaxListeners warnings are a gift—do not raise the limit to silence them without fixing the cause.</p>
+          <p>Timers and intervals created per connection that never clear. WebSocket servers are frequent offenders.</p>
+          <p>Third-party SDKs sometimes register global handlers. If retained size points into node_modules, upgrade or isolate the SDK in a worker process.</p>
+          <pre><code>// Leaky pattern
+const sessions = new Map();
+app.post(&#x27;/login&#x27;, (req, res) =&gt; {
+  sessions.set(req.body.userId, { req, huge: req.body }); // retains request forever
+});
+
+// Better: store ids and minimal state, bound the map
+import { LRUCache } from &#x27;lru-cache&#x27;;
+const sessions = new LRUCache({ max: 5000, ttl: 1000 * 60 * 30 });
+app.post(&#x27;/login&#x27;, (req, res) =&gt; {
+  sessions.set(req.body.userId, { userId: req.body.userId, role: &#x27;user&#x27; });
+});</code></pre>
+
+          <h2>Native memory and external buffers</h2>
+          <p>Sometimes heapUsed looks stable while RSS climbs. That can be Buffer allocations, native addons, or compression libraries. Check process.memoryUsage().external and tool-specific metrics.</p>
+          <p>Streaming large uploads into memory is a classic. Prefer streaming to disk or object storage. I once “temporarily” collected upload chunks in an array for “just image uploads” and then a client sent 400MB videos.</p>
+
+          <h2>Fix, verify, prevent</h2>
+          <p>After a fix, re-run the same load script and confirm the second snapshot no longer grows the hot objects. Add a memory ceiling alert in staging that fails the deploy if heapUsed trends up across a soak test.</p>
+          <p>Code review flags: module-level collections, addListener without removeListener, setInterval without clear, and caching user content without bounds.</p>
+
+          <h2>Clinic, 0x, and when DevTools is enough</h2>
+          <p>Chrome DevTools snapshots handle most app-level leaks. For CPU paired with memory weirdness I reach for clinic heapprofiler or doctor. They add overhead—use them in staging soak tests, not on every production pod.</p>
+          <p>If the leak only appears after hours, schedule snapshot capture at +10m, +60m, +180m under synthetic load. Comparing three points shows growth rate and whether a particular constructor keeps climbing.</p>
+          <p>Document the finding in the ticket with before/after retained sizes. Future you will thank present you when the same Map pattern returns in another service.</p>
+
+          <h2>Promises, closures, and the quiet retainers</h2>
+          <p>Long-lived promises that close over request-scoped objects keep those objects alive until the promise settles. A dangling retry loop holding the original req body is a leak shaped like “we are being careful about retries.”</p>
+          <p>Async queues that buffer failed jobs in memory without a max length will grow forever during a downstream outage. Bound the queue. Shed load. Prefer durable queues for work that must survive process restart anyway.</p>
+          <ul>
+            <li>Bound in-memory retry buffers</li>
+            <li>Avoid closing over full req/res in timers</li>
+            <li>Snapshot on a schedule during soak tests</li>
+            <li>Record retained-size deltas in the fix PR</li>
+          </ul>
+
+          <h2>A walkthrough of one real leak</h2>
+          <p>We had a notification service whose heap grew ~15MB per hour under steady load. Snapshots showed thousands of Discord webhook payload strings retained by an array on a module-level Metrics object that pushed every outbound body “for debugging.”</p>
+          <p>The fix was three lines: stop retaining bodies, keep only counters, and sample errors to the logger. Heap stabilized within minutes of deploy. The expensive part was not the fix—it was proving the retainer with two snapshots so nobody argued about “maybe Redis.”</p>
+          <p>Takeaway I repeat in postmortems: if you add a debug collector, give it a max length on day one. Debug code becomes production code the moment it ships.</p>
+
+          <h2>Production safety while debugging</h2>
+          <p>Heap snapshots are large and CPU-heavy. Taking them on every pod during peak traffic can cause the outage you are investigating. Prefer a single canary instance, off-peak windows, or staging soak with production traffic replay.</p>
+          <p>Strip secrets from snapshots before sharing with vendors or pasting into tickets. Snapshots can contain strings from requests, including tokens.</p>
+          <p>After remediation, leave the metrics and alerts in place. Leaks return in new features that copy old patterns.</p>
+          <ul>
+            <li>Snapshot canaries, not the whole fleet at once</li>
+            <li>Treat heapsnapshot files as sensitive</li>
+            <li>Keep memory trend alerts after the fix</li>
+            <li>Cap every new in-process collector</li>
+          </ul>
+
+          <h2>Habits that prevent the next leak</h2>
+          <p>Code review questions I ask: Does this Map or array live at module scope? What is its maximum size? Who clears this interval? Does this listener die with the socket?</p>
+          <p>Load tests should include a memory assertion: after N minutes of steady traffic and a short idle, heapUsed must not exceed baseline by more than a set percentage. CI will not catch every leak, but it catches the loud ones before customers do.</p>
+          <p>When you vendor a new SDK, read its README for global state and debugging flags. Many “enable verbose logging” options retain payloads. Keep them off in production.</p>
+          <p>Heap snapshots look intimidating once. After two investigations they become a normal tool—like reading a stack trace. Invest in that skill; it pays back the first time RSS graphs only go up and to the right.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Confirm a leak with steady load plus rising heap across idle/GC—not a single RSS spike.</li>
+            <li>Reproduce with a script before taking snapshots so comparisons are meaningful.</li>
+            <li>Compare two heap snapshots and follow retainer chains to the owning cache or listener.</li>
+            <li>Bound in-process caches; prefer TTL/LRU over unbounded Maps.</li>
+            <li>Unsubscribe listeners and clear timers per connection lifecycle.</li>
+            <li>Guard heapdump endpoints and add soak-test memory alerts to catch regressions.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="accessibility-wcag-checklist.html" class="btn btn-secondary">&larr; A WCAG Checklist Developers Can Finish Bef…</a>
+        <a href="vite-vs-webpack.html" class="btn btn-primary">Next: Vite vs Webpack in 2026: When I Pick Which… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

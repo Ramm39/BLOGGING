@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MongoDB Aggregation Pipelines I Actually Use in Production — BudhiWorks</title>
+  <meta name="description" content="A practical walkthrough of MongoDB aggregation stages, indexing, and the patterns that replaced slow application-side joins in my Node services.">
+  <link rel="canonical" href="https://budhiworks.com/articles/mongodb-aggregation-pipeline.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="MongoDB Aggregation Pipelines I Actually Use in Production — BudhiWorks">
+  <meta property="og:description" content="A practical walkthrough of MongoDB aggregation stages, indexing, and the patterns that replaced slow application-side joins in my Node services.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/mongodb-aggregation-pipeline.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="MongoDB aggregation pipeline, $match $group $lookup, aggregation indexes, MongoDB performance, Node.js MongoDB">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-08-08">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">Databases</span>
+          <h1 class="article-title">MongoDB Aggregation Pipelines I Actually Use in Production</h1>
+          <p class="article-lead">Aggregation pipelines stopped being “advanced Mongo” for me once report endpoints started timing out. This is the shape I use for filters, joins, and rollups without pulling half the collection into Node.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-08-08">August 8, 2026</time> &bull; 9 min read &bull; ~1157 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Use aggregation when you would otherwise pull large result sets into Node to reduce.</li>
+            <li>Put selective $match first so indexes can cut the working set early.</li>
+            <li>Shape fields with $project before heavy $group or $lookup stages.</li>
+            <li>Verify new pipelines with explain() on realistic data volumes.</li>
+            <li>Build stages from allowlists—never interpolate raw user input into pipelines.</li>
+            <li>Cap date ranges and cardinality for interactive reports; use batch jobs for huge scans.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>When find() is not enough</h2>
+          <p>Early in a project I fetched all orders for a merchant, then reduced totals in JavaScript. It worked until the merchant hit 80k orders. Memory spiked, the event loop stalled, and the API returned 504s.</p>
+          <p>Aggregation moves that work next to the data. You filter early, project only needed fields, and let MongoDB stream results. The mental model is a Unix pipe: each stage transforms the stream for the next.</p>
+          <p>Aggregation is also how I implement rollups for invoices and tax reports where floating point in JS would scare accountants. Keep money in integer cents through the pipeline.</p>
+
+          <h2>Pipeline shape that stays fast</h2>
+          <p>My default order is: $match as early as possible, then $project or $addFields, then $group / $sort / $lookup, then final shaping. Putting $match first lets the planner use indexes. Putting $lookup last when possible avoids joining documents you will throw away.</p>
+          <p>I avoid $lookup inside hot request paths when a denormalized field would do. Lookups are powerful and expensive. For dashboards that run every minute, I often maintain a summary collection updated by the write path instead.</p>
+          <ul>
+            <li>$match early — use indexed fields</li>
+            <li>$project early — drop bulky fields before $group</li>
+            <li>$sort after reducing cardinality when you can</li>
+            <li>$lookup only for fields you cannot afford to denormalize</li>
+            <li>Prefer $facet for multi-metric dashboards in one round trip</li>
+          </ul>
+
+          <h2>Example: merchant revenue by day</h2>
+          <p>This is the report that replaced my Node reduce. Status and merchantId are indexed. I match first, then group by day in UTC, then sort.</p>
+          <pre><code>const revenueByDay = await db.collection(&#x27;orders&#x27;).aggregate([
+  {
+    $match: {
+      merchantId: new ObjectId(merchantId),
+      status: { $in: [&#x27;paid&#x27;, &#x27;refunded&#x27;] },
+      createdAt: { $gte: start, $lt: end },
+    },
+  },
+  {
+    $project: {
+      day: {
+        $dateToString: { format: &#x27;%Y-%m-%d&#x27;, date: &#x27;$createdAt&#x27;, timezone: &#x27;UTC&#x27; },
+      },
+      netCents: {
+        $cond: [
+          { $eq: [&#x27;$status&#x27;, &#x27;refunded&#x27;] },
+          { $multiply: [&#x27;$totalCents&#x27;, -1] },
+          &#x27;$totalCents&#x27;,
+        ],
+      },
+    },
+  },
+  {
+    $group: {
+      _id: &#x27;$day&#x27;,
+      revenueCents: { $sum: &#x27;$netCents&#x27; },
+      orderCount: { $sum: 1 },
+    },
+  },
+  { $sort: { _id: 1 } },
+]).toArray();</code></pre>
+
+          <h2>Joining with $lookup without melting the cluster</h2>
+          <p>I use $lookup for admin views where freshness matters more than micro-latency. Always constrain the local side first. A $lookup after an unbounded collection scan is how you discover your working set size the hard way.</p>
+          <p>Prefer the pipeline form of $lookup when you need to filter the foreign collection. The simple localField/foreignField form is fine for one-to-one id joins.</p>
+          <pre><code>const withCustomers = await db.collection(&#x27;orders&#x27;).aggregate([
+  { $match: { merchantId: oid, createdAt: { $gte: start } } },
+  { $limit: 100 },
+  {
+    $lookup: {
+      from: &#x27;customers&#x27;,
+      let: { cid: &#x27;$customerId&#x27; },
+      pipeline: [
+        { $match: { $expr: { $eq: [&#x27;$_id&#x27;, &#x27;$$cid&#x27;] } } },
+        { $project: { name: 1, email: 1 } },
+      ],
+      as: &#x27;customer&#x27;,
+    },
+  },
+  { $unwind: { path: &#x27;$customer&#x27;, preserveNullAndEmptyArrays: true } },
+]).toArray();</code></pre>
+
+          <h2>Indexes and explain()</h2>
+          <p>If the first $match cannot use an index, nothing downstream saves you. I run explain(&#x27;executionStats&#x27;) on new pipelines in staging with production-like data volume. Look for COLLSCAN on large collections and high nReturned versus totalDocsExamined ratios that look wrong.</p>
+          <p>Compound indexes should mirror the equality fields in $match, then range fields. For the revenue query above I use { merchantId: 1, status: 1, createdAt: 1 }.</p>
+          <p>Partial indexes that match the $match filter of a hot pipeline can shrink index size. Worth it when the collection is large and the query always includes status: &#x27;paid&#x27;.</p>
+
+          <h2>Mistakes that burned me</h2>
+          <p>Allowing clients to pass arbitrary field names into $project or $match is an injection footgun. Build stages in code from allowlists. Never concatenate user strings into aggregation JSON.</p>
+          <p>Unbounded $group on high-cardinality keys blew memory on a shared Atlas tier. I now cap date ranges in the API and reject ranges larger than 90 days for heavy reports.</p>
+          <p>Forgetting allowDiskUse on rare huge sorts caused failures after we upgraded Mongo versions and defaults shifted. I set it explicitly on batch jobs, never on interactive requests if I can avoid spill.</p>
+
+          <h2>Debugging and observability</h2>
+          <p>I log pipeline name, merchant id, duration, and docs examined when available. Slow aggregation logs have caught missing indexes faster than any dashboard.</p>
+          <p>Keep pipelines in named functions, not inline in route handlers. That makes them testable with a fixture database and easier to review in PRs.</p>
+
+          <h2>Facets for dashboard endpoints</h2>
+          <p>Dashboards often need counts, totals, and a small recent list. Three round trips mean three chances to disagree under concurrent writes. $facet runs parallel subpipelines on the same filtered input.</p>
+          <p>I still $match before $facet so each branch does not rescan the collection. Inside each branch I keep stages minimal. Facets that each $lookup the world will time out together and take the request with them.</p>
+          <pre><code>const dashboard = await db.collection(&#x27;orders&#x27;).aggregate([
+  { $match: { merchantId: oid, createdAt: { $gte: start } } },
+  {
+    $facet: {
+      totals: [
+        { $group: { _id: null, revenue: { $sum: &#x27;$totalCents&#x27; }, n: { $sum: 1 } } },
+      ],
+      byStatus: [
+        { $group: { _id: &#x27;$status&#x27;, n: { $sum: 1 } } },
+      ],
+      recent: [
+        { $sort: { createdAt: -1 } },
+        { $limit: 10 },
+        { $project: { totalCents: 1, status: 1, createdAt: 1 } },
+      ],
+    },
+  },
+]).next();</code></pre>
+
+          <h2>Change streams are not aggregations—and that is fine</h2>
+          <p>When people ask for “real-time aggregations,” they sometimes mean change streams updating a summary document. That is a different tool. I use aggregations for request/response reports and scheduled jobs. I use change streams or write-time increments when the UI needs live counters.</p>
+          <p>Mixing them poorly—running a full aggregation on every change—will melt Atlas. Update a summary collection incrementally on write, and use aggregation for historical ranges and audits.</p>
+
+          <h2>Cursor batches and Node memory</h2>
+          <p>toArray() on a huge aggregation result recreates the original problem—Node holds everything. For exports I stream the cursor and write CSV chunks. Set batchSize thoughtfully; default batches can still be large.</p>
+          <p>For HTTP APIs I paginate with $skip/$limit only on small offsets, or better, range on _id or createdAt. Deep $skip on millions of documents is a known performance trap.</p>
+          <pre><code>const cursor = db.collection(&#x27;orders&#x27;).aggregate(pipeline, { allowDiskUse: true, batchSize: 500 });
+for await (const doc of cursor) {
+  await writeCsvRow(doc);
+}</code></pre>
+
+          <h2>Testing aggregations without flaky clocks</h2>
+          <p>I seed a fixture database with known ObjectIds and fixed createdAt values. Tests assert exact group keys and sums. Avoid Date.now() in fixtures unless you control the clock.</p>
+          <p>Snapshot-testing the pipeline array itself helps review in PRs: when someone reorders stages, the diff is obvious. Pair that with an integration test that runs against Mongo Memory Server or a disposable container.</p>
+          <p>Production incident tip: keep the last slow pipeline in logs as JSON. Being able to paste it into Compass or mongosh cuts mean time to understanding dramatically.</p>
+          <ul>
+            <li>Stream cursors for large exports; avoid toArray()</li>
+            <li>Prefer range pagination over deep $skip</li>
+            <li>Fixture dates should be fixed and explicit</li>
+            <li>Log slow pipeline JSON for later replay</li>
+          </ul>
+
+          <h2>Putting it into the service layer</h2>
+          <p>I wrap pipelines in repository functions with typed inputs: merchantId, start, end—not free-form stage arrays from the controller. Controllers should not invent aggregation stages from query strings.</p>
+          <p>Timeouts matter. Set maxTimeMS on heavy reports so a bad plan cannot hold a mongod thread forever. Return a clear 503 or 400 to the client when the range is too wide instead of letting the driver hang until the load balancer cuts the connection.</p>
+          <p>Finally, revisit denormalization quarterly. If you $lookup the same customer fields on every list view, copying a display name onto the order at write time may be cheaper. Aggregation is powerful; it is not an excuse to skip modeling.</p>
+          <p>That mix—indexed $match first, careful $group, rare $lookup, faceted dashboards, streamed exports—is the practical aggregation toolkit I actually keep reaching for.</p>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Use aggregation when you would otherwise pull large result sets into Node to reduce.</li>
+            <li>Put selective $match first so indexes can cut the working set early.</li>
+            <li>Shape fields with $project before heavy $group or $lookup stages.</li>
+            <li>Verify new pipelines with explain() on realistic data volumes.</li>
+            <li>Build stages from allowlists—never interpolate raw user input into pipelines.</li>
+            <li>Cap date ranges and cardinality for interactive reports; use batch jobs for huge scans.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="nodejs-env-vars-security.html" class="btn btn-secondary">&larr; Environment Variables Security for Node Ap…</a>
+        <a href="accessibility-wcag-checklist.html" class="btn btn-primary">Next: A WCAG Checklist Developers Can Finish Bef… &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

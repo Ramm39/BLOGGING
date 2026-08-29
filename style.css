@@ -685,6 +685,41 @@ a:hover {
   color: var(--text-dim);
 }
 
+.quick-take-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.quick-take-box h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  color: var(--text-main);
+}
+
+.quick-take-box ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.quick-take-box li {
+  margin-bottom: 0.4rem;
+  color: var(--text-muted);
+}
+
+.article-body {
+  margin-top: 1rem;
+}
+
+.article-title {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1.2;
+  margin: 0.75rem 0 1rem;
+  color: var(--text-main);
+}
+
 .article-prose {
   font-size: 1.1rem;
   line-height: 1.8;

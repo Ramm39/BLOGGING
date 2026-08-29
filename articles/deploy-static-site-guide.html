@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deploy a Static Site: Netlify, GitHub Pages, and Nginx Step by Step — BudhiWorks</title>
+  <meta name="description" content="A practical guide to shipping a static HTML/CSS/JS site to Netlify, GitHub Pages, and a VPS with Nginx—including caching, HTTPS, and the mistakes that break deploys.">
+  <link rel="canonical" href="https://budhiworks.com/articles/deploy-static-site-guide.html">
+  <meta name="color-scheme" content="dark light">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="Deploy a Static Site: Netlify, GitHub Pages, and Nginx Step by Step — BudhiWorks">
+  <meta property="og:description" content="A practical guide to shipping a static HTML/CSS/JS site to Netlify, GitHub Pages, and a VPS with Nginx—including caching, HTTPS, and the mistakes that break deploys.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://budhiworks.com/articles/deploy-static-site-guide.html">
+  <meta property="og:site_name" content="BudhiWorks">
+  <meta name="keywords" content="deploy static site, Netlify deploy, GitHub Pages, Nginx static files, HTTPS Let&#x27;s Encrypt, cache-control headers">
+  <meta property="og:type" content="article">
+  <meta property="article:published_time" content="2026-08-27">
+  <meta property="article:author" content="Ram">
+  <link rel="stylesheet" href="../style.css">
+  <script src="../script.js" defer></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5099209873544602"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="bg-glow-container">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+  </div>
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="../index.html" class="brand-logo">
+        <span class="logo-icon">B</span>
+        <span>Budhi<span class="gradient-text">Works</span></span>
+      </a>
+      <nav>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="../index.html" class="nav-link active">Home</a></li>
+          <li><a href="../start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="../resources.html" class="nav-link">Resources</a></li>
+          <li><a href="../about.html" class="nav-link">About</a></li>
+          <li><a href="../contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">☀️</button>
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation Menu">☰</button>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="container article-container">
+      <article class="content-page">
+        <header class="article-header">
+          <span class="badge badge-cyan">DevOps</span>
+          <h1 class="article-title">Deploy a Static Site: Netlify, GitHub Pages, and Nginx Step by Step</h1>
+          <p class="article-lead">BudhiWorks itself is a static site. Here is how I deploy the same kind of project to Netlify, GitHub Pages, or a plain Nginx box—without mystery 404s and stale caches.</p>
+          <div class="article-meta">
+            <div class="author-avatar">RM</div>
+            <div>
+              <strong>By <a href="../author.html">Ram</a></strong><br>
+              <time datetime="2026-08-27">August 27, 2026</time> &bull; 8 min read &bull; ~1196 words
+            </div>
+          </div>
+        </header>
+
+        <div class="quick-take-box">
+          <h3>What you will learn</h3>
+          <ul>
+            <li>Static hosting is a publish-directory problem plus HTTPS and cache policy.</li>
+            <li>Netlify.toml (or equivalent) keeps headers and publish settings in git.</li>
+            <li>GitHub Pages project URLs need correct base paths for assets.</li>
+            <li>On a VPS, rsync --delete and Certbot plus clear Nginx cache rules.</li>
+            <li>Cache hashed assets forever; revalidate HTML so references stay fresh.</li>
+            <li>Verify deep links, HTTPS, and asset URLs after every first deploy to a new host.</li>
+          </ul>
+        </div>
+
+        <div class="article-body article-prose">
+          <h2>What “static” buys you</h2>
+          <p>A static site is HTML, CSS, JS, and assets on a CDN or web server. No app server process to babysit. Deploys are file syncs. That simplicity is why blogs, docs, and marketing sites should stay static until they truly need a backend.</p>
+          <p>Your job is correct URLs, HTTPS, cache headers, and a pipeline that publishes only the intended directory. Most outages I see are wrong publish directories, missing redirects for SPA routes, or CDN caches that never expire after a bad release.</p>
+          <p>Static does not mean “no pipeline.” Even hand-written HTML benefits from link checkers and HTML validators in CI before publish.</p>
+
+          <h2>Option A: Netlify</h2>
+          <p>Connect the Git repo, set the publish directory (for this project that might be the repo root or a dist/ folder), and leave the build command empty if there is no build step. For a generator, set build and publish accordingly.</p>
+          <p>Add a netlify.toml so settings live in git. Force HTTPS. Use _redirects or the toml redirects table for clean URLs. Preview deploys on pull requests catch broken links before production.</p>
+          <pre><code># netlify.toml
+[build]
+  publish = &quot;.&quot;
+  # command = &quot;npm run build&quot;  # if you have a build
+
+[[headers]]
+  for = &quot;/*&quot;
+  [headers.values]
+    X-Frame-Options = &quot;DENY&quot;
+    X-Content-Type-Options = &quot;nosniff&quot;
+
+[[headers]]
+  for = &quot;/assets/*&quot;
+  [headers.values]
+    Cache-Control = &quot;public, max-age=31536000, immutable&quot;
+
+[[headers]]
+  for = &quot;/*.html&quot;
+  [headers.values]
+    Cache-Control = &quot;public, max-age=0, must-revalidate&quot;</code></pre>
+
+          <h2>Option B: GitHub Pages</h2>
+          <p>Pages can publish from a branch (often gh-pages) or from GitHub Actions. I prefer Actions: build on main, upload artifacts, deploy with the official Pages action. That keeps source and published artifacts separate.</p>
+          <p>Project sites live at username.github.io/repo/. Asset paths must respect that base. Absolute paths starting at / break on project pages. Relative paths or a configured base URL fix it.</p>
+          <pre><code># .github/workflows/pages.yml
+name: Deploy Pages
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4</code></pre>
+
+          <h2>Option C: Nginx on a VPS</h2>
+          <p>For full control I rsync the site to /var/www/site and point Nginx at it. Certbot handles Let’s Encrypt certificates. This path costs more ops time and gives you exact cache and header behavior.</p>
+          <p>rsync with --delete prevents old articles from lingering after renames. I learned that when a deleted draft kept ranking in search because the file never left the server.</p>
+          <pre><code>server {
+  listen 443 ssl http2;
+  server_name example.com www.example.com;
+
+  root /var/www/site;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ =404;
+  }
+
+  location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|webp|woff2)$ {
+    expires 30d;
+    add_header Cache-Control &quot;public&quot;;
+  }
+
+  location ~* \.html$ {
+    add_header Cache-Control &quot;no-cache&quot;;
+  }
+}
+
+# Deploy
+rsync -avz --delete ./site/ user@server:/var/www/site/</code></pre>
+
+          <h2>Caching and cache-busting</h2>
+          <p>Hash filenames for CSS/JS when you have a build step, then cache them forever. HTML should revalidate so users pick up new asset references. Without that split, you either break users with stale HTML pointing at missing hashed files, or you never cache and waste bandwidth.</p>
+          <p>After a bad deploy on a CDN, purge intentionally. Hoping “it will expire” during an incident is how you spend an hour explaining why half the audience sees the old homepage.</p>
+          <p>Version the deploy. A simple GENERATED_AT or git SHA in a meta tag makes “what’s live?” answerable without SSH.</p>
+
+          <h2>Checks before you call it live</h2>
+          <p>Hit the homepage, an article URL, and a known 404. Confirm HTTPS redirects. View source on CSS/JS URLs. Run a quick Lighthouse pass for broken a11y and huge images. Submit the sitemap if it is a content site.</p>
+          <ul>
+            <li>Publish directory is correct (no accidental parent folder)</li>
+            <li>HTTPS works and HTTP redirects</li>
+            <li>Article deep links return 200</li>
+            <li>CSS/JS load (watch base path on GitHub project pages)</li>
+            <li>HTML short cache; hashed assets long cache</li>
+            <li>robots.txt and sitemap.xml reachable</li>
+          </ul>
+
+          <h2>Which host I choose</h2>
+          <p>Netlify or similar PaaS for speed and preview deploys. GitHub Pages for simple docs when the repo already lives on GitHub and the base path is acceptable. Nginx when I need custom headers, multiple sites on one box, or data residency constraints.</p>
+          <p>Start on a PaaS. Move to a VPS when you have a concrete reason. Premature Nginx is unpaid sysadmin work.</p>
+
+          <h2>Custom domains and DNS gotchas</h2>
+          <p>Point the apex and www with the records your host documents. Apex often needs ALIAS/ANAME or A records; CNAME-only setups fail on bare domains. Wait for DNS TTL before declaring failure.</p>
+          <p>Set canonical host redirects early—www to apex or the reverse—so analytics and sitemaps do not split. Mixed content warnings usually mean an asset still referenced via http://; fix the HTML, not only the certificate.</p>
+          <p>For BudhiWorks-style article sites, keep canonical link tags aligned with the final domain. Publishing under a netlify.app URL and later moving to a custom domain without updating canonicals confuses search engines.</p>
+
+          <h2>SPAs versus multi-page static sites</h2>
+          <p>Multi-page static HTML (like this blogging repo) needs try_files that serve real files and a clean 404. SPA mode that rewrites everything to index.html will hide missing articles as the homepage shell—bad for content sites.</p>
+          <p>If you do ship an SPA admin elsewhere, use a separate location block or host. Do not reuse the blog’s Nginx try_files for an app that needs history API fallbacks.</p>
+          <p>Precompress assets with gzip or brotli at the CDN. Nginx can serve precompressed .br files when configured. It is free performance for text-heavy blogs.</p>
+          <ul>
+            <li>Content sites: real paths and real 404 pages</li>
+            <li>SPA fallbacks only where the app needs them</li>
+            <li>Align canonical URLs with the custom domain</li>
+            <li>Enable HTTPS redirects and HSTS once stable</li>
+          </ul>
+
+          <h2>Headers worth setting on day one</h2>
+          <p>Besides cache policy, I set X-Content-Type-Options nosniff, a conservative Referrer-Policy, and a Content-Security-Policy that fits the site. Static blogs can use strict CSPs more easily than complex SPAs.</p>
+          <p>HSTS comes after you are sure HTTPS works on all subdomains you cover. Premature HSTS with includeSubDomains has locked teams out of internal HTTP tools on sibling hosts.</p>
+          <p>Security headers do not replace careful script hygiene. They reduce blast radius when a mistake happens.</p>
+          <pre><code>Content-Security-Policy: default-src &#x27;self&#x27;; img-src &#x27;self&#x27; data: https:; \
+  style-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;; script-src &#x27;self&#x27; https://pagead2.googlesyndication.com; \
+  frame-ancestors &#x27;none&#x27;;
+Referrer-Policy: strict-origin-when-cross-origin
+X-Content-Type-Options: nosniff</code></pre>
+
+          <h2>Rollback in under a minute</h2>
+          <p>Netlify and similar hosts keep deploy history—rollback is a click. On GitHub Pages, redeploy the previous commit SHA. On Nginx, keep the last rsync tree under /var/www/site-prev and symlink swap atomically.</p>
+          <p>Practice rollback once before you need it. The first bad CSS deploy at peak reading time is a poor moment to learn your host’s UI.</p>
+          <p>For content sites, prefer fixing forward when the error is a typo. Prefer rollback when the error is “deleted the stylesheet” or “wrong publish folder emptied the site.”</p>
+
+          <h2>Ship checklist I reuse</h2>
+          <p>Before DNS cutover: dry-run deploy on a preview URL, click three article links, validate CSS loads, confirm sitemap and robots, confirm 404 page exists.</p>
+          <p>At cutover: lower TTL ahead of time if you control DNS, flip records, watch HTTPS cert issuance, purge CDN if needed, verify canonical host redirect.</p>
+          <p>After cutover: spot-check Search Console or analytics for spike in 404s, keep the previous deploy ready for rollback for 24 hours, then delete stale hosts so you do not accidentally edit the wrong place next week.</p>
+          <p>Static sites are simple until they are not. The steps above keep Netlify, GitHub Pages, and Nginx deploys predictable enough that content work stays the hard part—which is where you want the effort.</p>
+          <ul>
+            <li>Preview before production DNS</li>
+            <li>Verify deep links and assets on the real host</li>
+            <li>Keep a one-step rollback ready for a day</li>
+            <li>Monitor 404s after cutover</li>
+          </ul>
+
+          <h2>Key takeaways</h2>
+          <ul>
+            <li>Static hosting is a publish-directory problem plus HTTPS and cache policy.</li>
+            <li>Netlify.toml (or equivalent) keeps headers and publish settings in git.</li>
+            <li>GitHub Pages project URLs need correct base paths for assets.</li>
+            <li>On a VPS, rsync --delete and Certbot plus clear Nginx cache rules.</li>
+            <li>Cache hashed assets forever; revalidate HTML so references stay fresh.</li>
+            <li>Verify deep links, HTTPS, and asset URLs after every first deploy to a new host.</li>
+          </ul>
+
+          <div class="info-card" style="margin-top:2rem;">
+            <h3 style="margin-top:0;">About the author</h3>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
+          </div>
+        </div>
+      </article>
+
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <a href="kubernetes-secrets-management.html" class="btn btn-secondary">&larr; Kubernetes Secrets Management Basics Witho…</a>
+        <a href="../start-here.html" class="btn btn-primary">Start here &rarr;</a>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="../index.html" class="brand-logo">
+            <span class="logo-icon">B</span>
+            <span>Budhi<span class="gradient-text">Works</span></span>
+          </a>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="../index.html#articles">All articles</a></li>
+            <li><a href="../start-here.html">Start here</a></li>
+            <li><a href="../resources.html">Resources</a></li>
+            <li><a href="../author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="../about.html">About</a></li>
+            <li><a href="../editorial-policy.html">Editorial policy</a></li>
+            <li><a href="../contact.html">Contact</a></li>
+            <li><a href="../privacy.html">Privacy</a></li>
+            <li><a href="../terms.html">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

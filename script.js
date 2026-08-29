@@ -123,9 +123,10 @@ function initContactForm() {
         return;
       }
 
-      // Simulate successful transmission
-      showAlert('Thank you for contacting BudhiWorks! Your message has been sent successfully. We will get back to you shortly.', 'success');
-      contactForm.reset();
+      const body = `From: ${name} <${email}>\n\n${message}`;
+      const mailto = `mailto:contact@budhiworks.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailto;
+      showAlert('Opening your email client to send the message to contact@budhiworks.com. If nothing opens, email that address directly.', 'success');
     });
   }
 

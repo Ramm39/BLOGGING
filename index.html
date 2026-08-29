@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BudhiWorks — Exploring IT, Computing & Technospirituality</title>
-  <meta name="description" content="BudhiWorks publishes deep-dive insights on computer science, IT architecture, intellectual inquiry, and consciousness in the digital age.">
+  <title>BudhiWorks — Practical Web Engineering Guides</title>
+  <meta name="description" content="Original how-to guides on Core Web Vitals, JWT auth, Docker, React, Postgres, Redis, and more — written from production experience.">
   <link rel="canonical" href="https://budhiworks.com/">
   <meta name="color-scheme" content="dark light">
-  <meta property="og:title" content="BudhiWorks — Exploring IT, Computing & Technospirituality">
-  <meta property="og:description" content="Deep technical insights, systems architecture, and modern intellectual philosophy.">
+  <meta name="author" content="Ram">
+  <meta property="og:title" content="BudhiWorks — Practical Web Engineering Guides">
+  <meta property="og:description" content="Original how-to guides on Core Web Vitals, JWT auth, Docker, React, Postgres, Redis, and more — written from production experience.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/">
   <meta property="og:site_name" content="BudhiWorks">
@@ -22,7 +23,6 @@
     <div class="bg-glow-1"></div>
     <div class="bg-glow-2"></div>
   </div>
-
   <header class="site-header">
     <div class="container navbar">
       <a href="index.html" class="brand-logo">
@@ -32,9 +32,10 @@
       <nav>
         <ul class="nav-links" id="navLinks">
           <li><a href="index.html" class="nav-link active">Home</a></li>
+          <li><a href="start-here.html" class="nav-link">Start here</a></li>
+          <li><a href="resources.html" class="nav-link">Resources</a></li>
           <li><a href="about.html" class="nav-link">About</a></li>
           <li><a href="contact.html" class="nav-link">Contact</a></li>
-          <li><a href="privacy.html" class="nav-link">Privacy</a></li>
         </ul>
       </nav>
       <div class="header-actions">
@@ -43,536 +44,287 @@
       </div>
     </div>
   </header>
-
   <main class="main-content">
     <div class="container">
       <section class="hero-section">
         <div class="hero-content">
-          <span class="badge badge-cyan" style="margin-bottom: 1rem;">Digital Publishing Platform</span>
-          <h1>Technology, Mind &amp; Systemics</h1>
-          <p class="hero-subtitle">Exploring the intersections of computer science, intellectual philosophy, distributed systems, and modern digital consciousness.</p>
+          <span class="badge badge-cyan" style="margin-bottom: 1rem;">Practical engineering guides</span>
+          <h1>Build, ship, and debug with clarity</h1>
+          <p class="hero-subtitle">25 original how-to guides on web performance, APIs, databases, DevOps, and frontend — written for developers who search when something is broken.</p>
+          <p style="margin: 1rem 0 0;"><a class="btn btn-primary" href="start-here.html">New here? Start here</a>
+          <a class="btn btn-secondary" href="resources.html" style="margin-left:0.5rem;">Useful resources</a></p>
 
           <div class="search-box-container">
             <span class="search-icon" aria-hidden="true">⌕</span>
-            <input type="text" id="articleSearchInput" class="search-input" placeholder="Search across 50 deep-dive articles (e.g. recursion, consensus, entropy)..." aria-label="Search articles">
+            <input type="text" id="articleSearchInput" class="search-input" placeholder="Search guides (CORS, JWT, Docker, Core Web Vitals…)" aria-label="Search articles">
           </div>
 
           <div class="category-filters" role="toolbar" aria-label="Filter by category">
-            <button class="filter-btn active" type="button" data-filter="all">All (50)</button>
-            <button class="filter-btn" type="button" data-filter="Computer Science">Computer Science</button>
-            <button class="filter-btn" type="button" data-filter="Information Theory">Information Theory</button>
-            <button class="filter-btn" type="button" data-filter="Cognitive AI">Cognitive AI</button>
-            <button class="filter-btn" type="button" data-filter="Technospirituality">Technospirituality</button>
-            <button class="filter-btn" type="button" data-filter="Systemic Philosophy">Systemic Philosophy</button>
+            <button class="filter-btn active" type="button" data-filter="all">All (25)</button>
+<button class="filter-btn" type="button" data-filter="Backend">Backend (7)</button>
+<button class="filter-btn" type="button" data-filter="Databases">Databases (3)</button>
+<button class="filter-btn" type="button" data-filter="DevOps">DevOps (5)</button>
+<button class="filter-btn" type="button" data-filter="Developer Tools">Developer Tools (2)</button>
+<button class="filter-btn" type="button" data-filter="Frontend">Frontend (6)</button>
+<button class="filter-btn" type="button" data-filter="Web Performance">Web Performance (2)</button>
           </div>
         </div>
       </section>
 
       <section id="articles" class="article-grid" aria-label="Articles">
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="DevOps">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">DevOps</span>
         </div>
-        <h2 class="card-title"><a href="articles/recursion-and-consciousness.html">Recursion and Consciousness: Self-Referential Code in Mind and Machine</a></h2>
-        <p class="card-excerpt">How stack frames, activation records, and self-referential functions mirror human self-awareness and Douglas Hofstadter&#x27;s Strange Loops.</p>
+        <h2 class="card-title"><a href="articles/deploy-static-site-guide.html">Deploy a Static Site: Netlify, GitHub Pages, and Nginx Step by Step</a></h2>
+        <p class="card-excerpt">BudhiWorks itself is a static site. Here is how I deploy the same kind of project to Netlify, GitHub Pages, or a plain Nginx box—without mystery 404s and stale caches.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 14 min read</div>
+          <div class="card-meta">By Ram • August 27, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="DevOps">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">DevOps</span>
         </div>
-        <h2 class="card-title"><a href="articles/ethics-of-distributed-systems.html">The Ethics of Distributed Systems: Lessons from Consensus Algorithms</a></h2>
-        <p class="card-excerpt">What Byzantine Fault Tolerance, Paxos, and Raft consensus teach us about human collaboration, trust, and decentralized governance.</p>
+        <h2 class="card-title"><a href="articles/kubernetes-secrets-management.html">Kubernetes Secrets Management Basics Without Shooting Yourself in the Foot</a></h2>
+        <p class="card-excerpt">Kubernetes Secrets are base64, not encryption. Here is how I store, mount, and rotate credentials in clusters without leaving plaintext in git or world-readable env dumps.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • August 23, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Developer Tools">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Developer Tools</span>
         </div>
-        <h2 class="card-title"><a href="articles/memory-management-and-impermanence.html">Memory Management &amp; Impermanence: Garbage Collection as Digital Catharsis</a></h2>
-        <p class="card-excerpt">Exploring reference counting, generational garbage collectors, and heap allocation as computational metaphors for psychological release.</p>
+        <h2 class="card-title"><a href="articles/vite-vs-webpack.html">Vite vs Webpack in 2026: When I Pick Which</a></h2>
+        <p class="card-excerpt">I still maintain Webpack apps and start most greenfield UI in Vite. Here is how I choose in 2026 without rewriting working build pipelines for sport.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
+          <div class="card-meta">By Ram • August 19, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Backend">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Backend</span>
         </div>
-        <h2 class="card-title"><a href="articles/concurrency-and-human-attention.html">Concurrency, Race Conditions, and the Multithreaded Human Mind</a></h2>
-        <p class="card-excerpt">Analyzing mutexes, atomics, thread context switches, and deadlock prevention through the lens of human cognitive multitasking limits.</p>
+        <h2 class="card-title"><a href="articles/debug-nodejs-memory-leaks.html">Debugging Node.js Memory Leaks with Heap Snapshots</a></h2>
+        <p class="card-excerpt">When a Node service climbs from 200MB to 2GB over a day, guessing wastes time. Here is the heap-snapshot workflow I use to find what is retaining memory.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
+          <div class="card-meta">By Ram • August 16, 2026 • 9 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Frontend">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Frontend</span>
         </div>
-        <h2 class="card-title"><a href="articles/compiler-optimization-and-mental-models.html">Compiler Optimization &amp; Mental Models: Dead Code Elimination in Human Cognition</a></h2>
-        <p class="card-excerpt">How AST transformations, loop unrolling, and dead code elimination parallel the brain&#x27;s pruning of redundant behavioral habits.</p>
+        <h2 class="card-title"><a href="articles/accessibility-wcag-checklist.html">A WCAG Checklist Developers Can Finish Before Standup</a></h2>
+        <p class="card-excerpt">Accessibility work stuck on our backlog until I turned WCAG into a short, shippable checklist for every PR. Here is what I actually verify before calling a UI done.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
+          <div class="card-meta">By Ram • August 12, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Databases">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Databases</span>
         </div>
-        <h2 class="card-title"><a href="articles/operating-system-kernels-and-governance.html">Operating System Kernels &amp; Governance: Process Scheduling in Complex Organizations</a></h2>
-        <p class="card-excerpt">Comparing Linux CFS process schedulers, interrupts, and ring-0 security layers to organizational decision-making hierarchies.</p>
+        <h2 class="card-title"><a href="articles/mongodb-aggregation-pipeline.html">MongoDB Aggregation Pipelines I Actually Use in Production</a></h2>
+        <p class="card-excerpt">Aggregation pipelines stopped being “advanced Mongo” for me once report endpoints started timing out. This is the shape I use for filters, joins, and rollups without pulling half the collection into Node.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • August 8, 2026 • 9 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Backend">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Backend</span>
         </div>
-        <h2 class="card-title"><a href="articles/graph-theory-and-social-interconnection.html">Graph Theory and Social Interconnection: Topological Mapping of Human Relationships</a></h2>
-        <p class="card-excerpt">Dijkstra&#x27;s shortest path, centrality metrics, and strongly connected components applied to social network topology and empathy.</p>
+        <h2 class="card-title"><a href="articles/nodejs-env-vars-security.html">Environment Variables Security for Node Apps: Lessons from Leaked Secrets</a></h2>
+        <p class="card-excerpt">Most Node secret leaks I investigate are not exotic exploits. They are .env files in git, DEBUG logs printing process.env, and Docker layers that baked credentials into the image.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
+          <div class="card-meta">By Ram • August 5, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Backend">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Backend</span>
         </div>
-        <h2 class="card-title"><a href="articles/event-loops-and-non-blocking-existence.html">Event Loops &amp; Non-Blocking Existence: Asynchronous Architecture for Mental Clarity</a></h2>
-        <p class="card-excerpt">Deconstructing Node.js event queues, libuv thread pools, and asynchronous promises to architect a non-reactive human mindset.</p>
+        <h2 class="card-title"><a href="articles/api-rate-limiting.html">API Rate Limiting with Token Buckets and Redis: What Actually Works</a></h2>
+        <p class="card-excerpt">Rate limiting is not a nice-to-have once bots or a buggy client find your public endpoints. Here is the token-bucket design I use with Redis, including the failure modes I hit in production.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
+          <div class="card-meta">By Ram • August 2, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Web Performance">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Web Performance</span>
         </div>
-        <h2 class="card-title"><a href="articles/algorithmic-complexity-and-human-limits.html">Big-O Notation for Life: Algorithmic Complexity and Human Cognitive Limits</a></h2>
-        <p class="card-excerpt">From O(1) constant-time habits to O(N!) factorial burnout: calculating time and space complexity of daily human routines.</p>
+        <h2 class="card-title"><a href="articles/optimize-images-webp-avif.html">WebP and AVIF Image Optimization That Actually Improves LCP</a></h2>
+        <p class="card-excerpt">Hero images dominate LCP on most marketing pages I audit. Switching to AVIF/WebP helps only if sizing, priority, and encoding are right—here is the workflow that moved real numbers.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • July 28, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Computer Science">
+      <article class="article-card" data-category="Frontend">
         <div class="card-top">
-          <span class="badge">Computer Science</span>
+          <span class="badge">Frontend</span>
         </div>
-        <h2 class="card-title"><a href="articles/vector-databases-and-semantic-memory.html">High-Dimensional Latent Spaces: Vector Databases and Synthetic Semantic Memory</a></h2>
-        <p class="card-excerpt">Cosine similarity, HNSW indexing, and high-dimensional embeddings as models for human associative memory retrieval.</p>
+        <h2 class="card-title"><a href="articles/debounce-throttle-javascript.html">Debounce vs Throttle in JavaScript (With Code You Can Paste)</a></h2>
+        <p class="card-excerpt">Debounce and throttle both limit how often a function runs, but they fix different UX problems. Here are the implementations I use and the call sites that broke when I mixed them up.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 13 min read</div>
+          <div class="card-meta">By Ram • July 22, 2026 • 7 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Databases">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Databases</span>
         </div>
-        <h2 class="card-title"><a href="articles/entropy-noise-and-enlightenment.html">Entropy, Noise, and Enlightenment: Information Theory Meets Modern Zen</a></h2>
-        <p class="card-excerpt">Analyzing Shannon&#x27;s entropy equations to understand how human attention filters digital noise into quiet intellectual clarity.</p>
+        <h2 class="card-title"><a href="articles/sql-vs-nosql-when-to-choose.html">SQL vs NoSQL: A Decision Guide From Real Project Scenarios</a></h2>
+        <p class="card-excerpt">The database choice shows up in every later decision. Here is how I pick SQL vs NoSQL for web apps, with scenarios I have shipped—and one choice I regret.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
+          <div class="card-meta">By Ram • July 19, 2026 • 7 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Backend">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Backend</span>
         </div>
-        <h2 class="card-title"><a href="articles/error-correcting-codes-and-resilience.html">Hamming Distance &amp; Error-Correcting Codes: Building Resilient Mental Systems</a></h2>
-        <p class="card-excerpt">How Reed-Solomon parity bits and Hamming distances model cognitive resilience against misinformation and internal doubt.</p>
+        <h2 class="card-title"><a href="articles/rest-api-design-best-practices.html">REST API Design I Stick To: Status Codes, Pagination, and Errors</a></h2>
+        <p class="card-excerpt">Clients should not need tribal knowledge to use your API. These are the REST conventions I enforce on Node services—status codes, pagination, and errors that do not invent a private dialect.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
+          <div class="card-meta">By Ram • July 15, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="DevOps">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">DevOps</span>
         </div>
-        <h2 class="card-title"><a href="articles/cybernetic-feedback-loops.html">Cybernetic Feedback Loops: Wiener&#x27;s Theory of Control in Self-Regulating Systems</a></h2>
-        <p class="card-excerpt">Norbert Wiener&#x27;s cybernetics, positive vs negative feedback loops, and homeostatic regulation in software and psychology.</p>
+        <h2 class="card-title"><a href="articles/github-actions-ci-cd.html">GitHub Actions CI/CD for Node Apps: Test, Build, Deploy</a></h2>
+        <p class="card-excerpt">I want every push to main to run tests and every green build to be deployable without SSH archaeology. This is the GitHub Actions setup I use for Node apps, including the mistakes that wasted CI minutes.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • July 12, 2026 • 7 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Backend">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Backend</span>
         </div>
-        <h2 class="card-title"><a href="articles/shannon-capacity-and-communication-limits.html">The Shannon Capacity Limit: Bandwidth, Noise, and Deep Human Connection</a></h2>
-        <p class="card-excerpt">Mathematical limits of channel capacity C = B log2(1 + S/N) applied to interpersonal communication signal clarity.</p>
+        <h2 class="card-title"><a href="articles/redis-caching-patterns.html">Redis Caching Patterns I Use: Cache-Aside, TTL, and Stampede Prevention</a></h2>
+        <p class="card-excerpt">Caching is easy until a key expires and a thousand requests hammer Postgres at once. These are the Redis patterns I use in production Node services, including how I prevent stampedes.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
+          <div class="card-meta">By Ram • July 8, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="DevOps">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">DevOps</span>
         </div>
-        <h2 class="card-title"><a href="articles/lossy-compression-and-human-memory.html">Lossy Compression of Reality: How Perception Filters Sensory Data</a></h2>
-        <p class="card-excerpt">Discrete Cosine Transforms, JPEG quantization matrices, and human perceptual loss in memory encoding.</p>
+        <h2 class="card-title"><a href="articles/nginx-reverse-proxy-setup.html">Nginx Reverse Proxy for Node Apps (With SSL Notes That Matter)</a></h2>
+        <p class="card-excerpt">Exposing Node on port 3000 to the internet is fine for a demo and a liability in production. Here is the Nginx reverse proxy setup I reuse, plus SSL mistakes that cost me overnight outages.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • July 5, 2026 • 8 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Frontend">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Frontend</span>
         </div>
-        <h2 class="card-title"><a href="articles/turing-completeness-and-existential-freedom.html">Turing Completeness and Existential Freedom: Limits of Formal Expressive Power</a></h2>
-        <p class="card-excerpt">The Halting Problem, universal Turing machines, and the inherent unpredictability of computationally complete agents.</p>
+        <h2 class="card-title"><a href="articles/css-flexbox-vs-grid.html">Flexbox vs CSS Grid: When I Use Each in Production Layouts</a></h2>
+        <p class="card-excerpt">I wasted weeks fighting Flexbox for two-dimensional pages before Grid existed in my muscle memory. Here is the rule I use now, with the layouts people actually search for.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
+          <div class="card-meta">By Ram • July 1, 2026 • 7 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Frontend">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Frontend</span>
         </div>
-        <h2 class="card-title"><a href="articles/cellular-automata-and-emergent-life.html">Conway&#x27;s Game of Life: Cellular Automata and the Physics of Emergence</a></h2>
-        <p class="card-excerpt">Simple local rules creating complex global behavior: glider guns, spaceships, and self-replicating computational patterns.</p>
+        <h2 class="card-title"><a href="articles/typescript-generics-practical-guide.html">Practical TypeScript Generics for APIs and React Props</a></h2>
+        <p class="card-excerpt">I ignored generics for years and sprinkled as casts instead. Once we typed our API client and a few shared components properly, a whole class of production bugs became compile errors.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • June 28, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Developer Tools">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Developer Tools</span>
         </div>
-        <h2 class="card-title"><a href="articles/information-asymmetry-and-digital-trust.html">Information Asymmetry in Zero-Trust Architectures and Human Societies</a></h2>
-        <p class="card-excerpt">Zero-Knowledge proofs, asymmetric encryption key pairs, and building trust without total surveillance.</p>
+        <h2 class="card-title"><a href="articles/git-rebase-vs-merge.html">Git Rebase vs Merge: A Safe Workflow We Use on Feature Branches</a></h2>
+        <p class="card-excerpt">Rebase versus merge is not religion on our team. It is about whether the commits are private and whether we want a linear PR.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
+          <div class="card-meta">By Ram • June 25, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Databases">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Databases</span>
         </div>
-        <h2 class="card-title"><a href="articles/kolmogorov-complexity-and-elegance.html">Kolmogorov Complexity: The Search for Minimal Representation and Code Elegance</a></h2>
-        <p class="card-excerpt">Shortest program length K(s) as an objective metric of aesthetic beauty and scientific reductionism.</p>
+        <h2 class="card-title"><a href="articles/postgresql-indexes-explained.html">PostgreSQL Indexes Explained: When B-tree Helps, When It Hurts</a></h2>
+        <p class="card-excerpt">I added five indexes in a panic once and made writes 3 times slower. Now I only ship indexes backed by EXPLAIN ANALYZE and a workload note.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • June 21, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Information Theory">
+      <article class="article-card" data-category="Frontend">
         <div class="card-top">
-          <span class="badge">Information Theory</span>
+          <span class="badge">Frontend</span>
         </div>
-        <h2 class="card-title"><a href="articles/maxwells-demon-and-computational-heat.html">Maxwell’s Demon, Landauer’s Principle, and the Thermodynamic Cost of Erasing Data</a></h2>
-        <p class="card-excerpt">Why bit erasure generates thermodynamic heat kT ln 2: connecting information theory to physical entropy.</p>
+        <h2 class="card-title"><a href="articles/nextjs-app-router-data-fetching.html">Next.js App Router Data Fetching: fetch, Cache, and revalidate Patterns</a></h2>
+        <p class="card-excerpt">App Router caching surprised us in production: a live admin page served stale inventory for 60 seconds. Here is how I choose fetch options on purpose.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
+          <div class="card-meta">By Ram • June 18, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Cognitive AI">
+      <article class="article-card" data-category="Frontend">
         <div class="card-top">
-          <span class="badge">Cognitive AI</span>
+          <span class="badge">Frontend</span>
         </div>
-        <h2 class="card-title"><a href="articles/bounded-rationality-and-heuristics.html">Bounded Rationality in Algorithmic Heuristics and Human Judgment</a></h2>
-        <p class="card-excerpt">Herbert Simon&#x27;s satisficing vs A* search heuristics: decision-making under strict compute constraints.</p>
+        <h2 class="card-title"><a href="articles/react-useeffect-common-mistakes.html">React useEffect Mistakes I Keep Reviewing in PRs</a></h2>
+        <p class="card-excerpt">Most useEffect bugs I review are not exotic. They are missing deps, missing cleanup, or effects that should have been event handlers.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
+          <div class="card-meta">By Ram • June 14, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Cognitive AI">
+      <article class="article-card" data-category="DevOps">
         <div class="card-top">
-          <span class="badge">Cognitive AI</span>
+          <span class="badge">DevOps</span>
         </div>
-        <h2 class="card-title"><a href="articles/neural-network-latent-spaces.html">Inside the Latent Space: High-Dimensional Representations of Human Intuition</a></h2>
-        <p class="card-excerpt">Transformer attention mechanisms, query-key-value projections, and non-linear manifold geometry.</p>
+        <h2 class="card-title"><a href="articles/docker-compose-for-developers.html">Docker Compose for Local Node, Postgres, and Redis</a></h2>
+        <p class="card-excerpt">I want one command that brings up API, Postgres, and Redis the same way on every laptop. This is the Compose setup we copy into new services.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 13 min read</div>
+          <div class="card-meta">By Ram • June 11, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Cognitive AI">
+      <article class="article-card" data-category="Backend">
         <div class="card-top">
-          <span class="badge">Cognitive AI</span>
+          <span class="badge">Backend</span>
         </div>
-        <h2 class="card-title"><a href="articles/the-chinese-room-and-synthetic-understanding.html">Searle’s Chinese Room Revisited: Syntactic Execution vs Genuine Semantics</a></h2>
-        <p class="card-excerpt">Does Large Language Model next-token prediction constitute genuine comprehension or elaborate symbol manipulation?</p>
+        <h2 class="card-title"><a href="articles/jwt-authentication-nodejs.html">JWT Access and Refresh Tokens in Node/Express with httpOnly Cookies</a></h2>
+        <p class="card-excerpt">I stopped putting JWTs in localStorage after one XSS demo emptied a staging account. Here is the access plus refresh cookie pattern we use in production Express apps.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
+          <div class="card-meta">By Ram • June 8, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Cognitive AI">
+      <article class="article-card" data-category="Web Performance">
         <div class="card-top">
-          <span class="badge">Cognitive AI</span>
+          <span class="badge">Web Performance</span>
         </div>
-        <h2 class="card-title"><a href="articles/distributed-cognition-and-cloud-infrastructure.html">Extended Mind &amp; Cloud Infrastructure: Where Does Human Thinking Stop?</a></h2>
-        <p class="card-excerpt">Andy Clark&#x27;s Extended Mind thesis in the age of persistent web APIs, vector stores, and smartphones.</p>
+        <h2 class="card-title"><a href="articles/core-web-vitals-guide.html">Core Web Vitals Guide: Practical LCP, INP, and CLS Checklist</a></h2>
+        <p class="card-excerpt">I treat Core Web Vitals as a release gate, not a blog buzzword. This is the checklist we run before shipping marketing pages and authenticated dashboards.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
+          <div class="card-meta">By Ram • June 5, 2026 • 12 min read</div>
         </div>
       </article>
-      <article class="article-card" data-category="Cognitive AI">
+      <article class="article-card" data-category="Backend">
         <div class="card-top">
-          <span class="badge">Cognitive AI</span>
+          <span class="badge">Backend</span>
         </div>
-        <h2 class="card-title"><a href="articles/bounded-context-in-domain-driven-design.html">Domain-Driven Design &amp; Cognitive Boundaries: Ubiquitous Language in Systems</a></h2>
-        <p class="card-excerpt">Eric Evans&#x27; DDD bounded contexts as linguistic barriers protecting mental clarity against semantic overload.</p>
+        <h2 class="card-title"><a href="articles/how-to-fix-cors-errors.html">How to Fix CORS Errors in Browser APIs (Preflight, Credentials, and Proxies)</a></h2>
+        <p class="card-excerpt">I still see CORS turn a 20-minute feature into a two-hour rabbit hole. Here is the checklist I use when the browser blocks a fetch that works fine in curl.</p>
         <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Cognitive AI">
-        <div class="card-top">
-          <span class="badge">Cognitive AI</span>
-        </div>
-        <h2 class="card-title"><a href="articles/epistemic-uncertainty-and-bayesian-inference.html">Epistemic Uncertainty: Bayesian Inference as a Model for Cognitive Adaptability</a></h2>
-        <p class="card-excerpt">Updating prior probability distributions P(A|B) in light of new evidence: combating cognitive dogmatism.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Cognitive AI">
-        <div class="card-top">
-          <span class="badge">Cognitive AI</span>
-        </div>
-        <h2 class="card-title"><a href="articles/introspective-monads-and-functional-purity.html">Functional Purity and Introspective Monads: Managing Side Effects in Mind and Code</a></h2>
-        <p class="card-excerpt">Pure functions, immutability, and state encapsulation as blueprints for emotional regulation.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Cognitive AI">
-        <div class="card-top">
-          <span class="badge">Cognitive AI</span>
-        </div>
-        <h2 class="card-title"><a href="articles/synthetic-data-and-epistemic-halflife.html">Epistemology of Synthetic Data: Model Collapse and Knowledge Half-Life</a></h2>
-        <p class="card-excerpt">What happens when AI models train on AI-generated text: variance decay, synthetic feedback loops, and human ground truth.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Cognitive AI">
-        <div class="card-top">
-          <span class="badge">Cognitive AI</span>
-        </div>
-        <h2 class="card-title"><a href="articles/computational-hermeneutics-and-code-reading.html">Computational Hermeneutics: The Art and Philosophy of Reading Source Code</a></h2>
-        <p class="card-excerpt">Source code as literary text: intentions, execution environments, and interpretive horizons.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Cognitive AI">
-        <div class="card-top">
-          <span class="badge">Cognitive AI</span>
-        </div>
-        <h2 class="card-title"><a href="articles/digital-existentialism-and-null-states.html">Digital Existentialism: Handling Null Pointers, Undefined States, and Void</a></h2>
-        <p class="card-excerpt">Sartre, Camus, and Option/Result monads: assigning meaning to empty slots and edge-case exceptions.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/mindfulness-in-software-craftsmanship.html">Mindfulness in Software Craftsmanship: Clean Code as Meditative Practice</a></h2>
-        <p class="card-excerpt">Refactoring as contemplative discipline: reducing cognitive debt through focused intentionality.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/moral-base-cases-in-autonomous-agents.html">Moral Base Cases: Ethical Guardrails in Autonomous Agent Swarms</a></h2>
-        <p class="card-excerpt">Defining non-negotiable ethical constraints in recursive decision trees and multi-agent coordination.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/the-panopticon-of-modern-telemetry.html">The Modern Telemetry Panopticon: Surveillance, Metrics, and Human Autonomy</a></h2>
-        <p class="card-excerpt">Foucault&#x27;s Panopticon in continuous observability stacks: OpenTelemetry, metrics overload, and human freedom.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/cyber-somatic-integration.html">Cyber-Somatic Integration: Mind-Machine Interfaces and the Future of Embodiment</a></h2>
-        <p class="card-excerpt">Neural interfaces, haptic feedback, and the expansion of human consciousness into silicon substrates.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/algorithmic-solipsism-and-filter-bubbles.html">Algorithmic Solipsism: Echo Chambers, Recommender Systems, and Isolation</a></h2>
-        <p class="card-excerpt">Personalized recommendation algorithms creating self-confirming reality tunnels and social atomization.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/philosophical-zombie-code.html">Philosophical Zombie Code: When Behavioral Output Masks Structural Vacuity</a></h2>
-        <p class="card-excerpt">Chalmers&#x27; P-zombies in software engineering: superficial UI facades versus robust underlying architecture.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/technological-teleology-and-purpose.html">Technological Teleology: Is Technology Evolving Toward an Intended Goal?</a></h2>
-        <p class="card-excerpt">Teilhard de Chardin&#x27;s Noosphere, Kevin Kelly&#x27;s Technium, and the directional trajectory of complex systems.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/ethical-hacking-and-digital-duty.html">The Stoicism of Vulnerability Disclosure: Ethical Hacking as Civic Duty</a></h2>
-        <p class="card-excerpt">Responsible disclosure, bug bounties, and the moral duty of preserving public digital infrastructure.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/technospiritual-quietude-and-digital-fasting.html">Technospiritual Quietude: Finding Silence in an Asynchronous World</a></h2>
-        <p class="card-excerpt">Cultivating mental stillness amidst push notifications, websocket connections, and constant ping loops.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Technospirituality">
-        <div class="card-top">
-          <span class="badge">Technospirituality</span>
-        </div>
-        <h2 class="card-title"><a href="articles/cognitive-offloading-and-ai-dependency.html">Cognitive Offloading: The Trade-Off Between Synthetic Convenience and Human Capability</a></h2>
-        <p class="card-excerpt">What we gain and what we lose when outsourcing memory, navigation, and reasoning to machine intelligence.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/quantum-superposition-and-decision-making.html">Quantum Superposition &amp; Decision Making: Navigating Multiple Mental States</a></h2>
-        <p class="card-excerpt">Qubits, state collapse upon measurement, and holding contradictory possibilities prior to commitment.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/cap-theorem-and-human-tradeoffs.html">The CAP Theorem of Human Life: Balancing Consistency, Availability, and Partition Tolerance</a></h2>
-        <p class="card-excerpt">Why human systems cannot simultaneously maximize total agreement, immediate availability, and isolation resistance.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/cryptographic-hashes-and-digital-identity.html">Cryptographic Hashes &amp; Immutable Truth: Proof of Work in Human Integrity</a></h2>
-        <p class="card-excerpt">SHA-256 collision resistance, Merkle trees, and the philosophical search for unforgeable character.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/dynamic-programming-and-optimal-substructure.html">Dynamic Programming for Life: Memoization, Overlapping Subproblems, and Optimal Substructure</a></h2>
-        <p class="card-excerpt">Solving complex life choices by caching intermediate solutions and recognizing overlapping subproblems.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/markov-chains-and-habitual-behavior.html">Markov Chains &amp; Human Habits: Transition Probabilities in Daily Life</a></h2>
-        <p class="card-excerpt">Memoryless state transitions, stationary distributions, and altering behavioral probability matrices.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 10 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/rate-distortion-theory-and-communication.html">Rate-Distortion Theory: The Art of Compromise in Human Communication</a></h2>
-        <p class="card-excerpt">Trading fidelity for bandwidth: rate-distortion trade-offs in art, language, and everyday conversation.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/ontological-engineering-and-knowledge-graphs.html">Ontological Engineering: Structuring Reality Through Knowledge Graphs</a></h2>
-        <p class="card-excerpt">RDF triples, OWL taxonomies, and formalizing human conceptual categories without dogmatic rigidity.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/philosophy-of-open-source-ecosystems.html">The Commons of Code: Philosophy of Open Source as Digital Mutualism</a></h2>
-        <p class="card-excerpt">Elinor Ostrom&#x27;s governing of the commons applied to Linux, NPM, and global open software collaboration.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 11 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/algorithmic-determinism-and-free-will.html">Algorithmic Determinism vs Free Will: Decision Trees in Synthetic Agents</a></h2>
-        <p class="card-excerpt">Pseudo-random seed generation, deterministic execution paths, and the illusion of spontaneous volition.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 12 min read</div>
-        </div>
-      </article>
-      <article class="article-card" data-category="Systemic Philosophy">
-        <div class="card-top">
-          <span class="badge">Systemic Philosophy</span>
-        </div>
-        <h2 class="card-title"><a href="articles/cosmic-stack-trace-and-the-final-base-case.html">The Cosmic Stack Trace: Base Cases, Recursion Limits, and Universal Computation</a></h2>
-        <p class="card-excerpt">A cosmic synthesis of physical law as computational execution, base boundary conditions, and ultimate awakening.</p>
-        <div class="card-footer">
-          <div class="card-meta">By BudhiWorks Team • August 5, 2026 • 13 min read</div>
+          <div class="card-meta">By Ram • June 2, 2026 • 11 min read</div>
         </div>
       </article>
       </section>
     </div>
   </main>
-
   <footer class="site-footer">
     <div class="container">
       <div class="footer-grid">
@@ -581,37 +333,30 @@
             <span class="logo-icon">B</span>
             <span>Budhi<span class="gradient-text">Works</span></span>
           </a>
-          <p>BudhiWorks is a technical engineering publication dedicated to modern web design, artificial intelligence, software architecture, and system scalability.</p>
+          <p>Practical guides for building, shipping, and debugging modern web systems — written from production experience, not theory dumps.</p>
         </div>
         <div>
-          <h4 class="footer-column-title">Navigation</h4>
-          <ul class="footer-links">
-            <li><a href="index.html">Home</a></li>
-            <li><a href="about.html">About Us</a></li>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="index.html#articles">All articles</a></li>
+            <li><a href="start-here.html">Start here</a></li>
+            <li><a href="resources.html">Resources</a></li>
+            <li><a href="author.html">Author</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Site</h4>
+          <ul>
+            <li><a href="about.html">About</a></li>
+            <li><a href="editorial-policy.html">Editorial policy</a></li>
             <li><a href="contact.html">Contact</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="footer-column-title">Legal</h4>
-          <ul class="footer-links">
-            <li><a href="privacy.html">Privacy Policy</a></li>
-            <li><a href="terms.html">Terms of Service</a></li>
-            <li><a href="sitemap.xml">Sitemap</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="footer-column-title">Topics</h4>
-          <ul class="footer-links">
-            <li><a href="index.html#articles">Computer Science</a></li>
-            <li><a href="index.html#articles">Information Theory</a></li>
-            <li><a href="index.html#articles">Cognitive AI</a></li>
-            <li><a href="index.html#articles">Technospirituality</a></li>
+            <li><a href="privacy.html">Privacy</a></li>
+            <li><a href="terms.html">Terms</a></li>
           </ul>
         </div>
       </div>
       <div class="footer-bottom">
-        <p>&copy; 2026 BudhiWorks. All rights reserved.</p>
-        <p>Designed with high-performance dark glassmorphism standards.</p>
+        <p>&copy; 2026 BudhiWorks. Written by Ram.</p>
       </div>
     </div>
   </footer>
