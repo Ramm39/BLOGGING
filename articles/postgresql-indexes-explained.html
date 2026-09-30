@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="PostgreSQL indexes, B-tree, EXPLAIN ANALYZE, query performance, index selectivity, Postgres">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-06-21">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-06-21">June 21, 2026</time> &bull; 12 min read &bull; ~1068 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1065 words
             </div>
           </div>
         </header>
@@ -119,7 +120,7 @@ CREATE INDEX CONCURRENTLY idx_tickets_open_assignee
           </ul>
 
           <h2>Finding dead indexes in production</h2>
-          <p>After two weeks of real traffic, I query pg_stat_user_indexes joined to pg_class for size. Anything with zero scans and non-trivial size goes on a drop candidate list. I exclude brand-new indexes and unique constraints that enforce correctness even if rarely used for reads.</p>
+          <p>After two weeks of real traffic, I query pg_stat_user_indexes with pg_relation_size for size. Anything with zero scans and non-trivial size goes on a drop candidate list. I exclude brand-new indexes and unique constraints that enforce correctness even if rarely used for reads.</p>
           <p>I drop one at a time during low traffic, watch APM for a week, then continue. Never bulk-drop six indexes before a holiday weekend.</p>
           <pre><code>SELECT
   schemaname || &#x27;.&#x27; || relname AS table,
@@ -127,7 +128,6 @@ CREATE INDEX CONCURRENTLY idx_tickets_open_assignee
   idx_scan,
   pg_size_pretty(pg_relation_size(indexrelid)) AS size
 FROM pg_stat_user_indexes
-JOIN pg_class ON pg_class.oid = indexrelid
 WHERE idx_scan = 0
 ORDER BY pg_relation_size(indexrelid) DESC
 LIMIT 20;</code></pre>
@@ -154,16 +154,6 @@ LIMIT 20;</code></pre>
           <h2>A small decision framework</h2>
           <p>Slow query in APM, capture SQL, run EXPLAIN ANALYZE, if seq scan on large table and selective filter then design minimal index, create concurrently on staging, compare plans and write p95, then ship. If the filter returns more than 20 to 30 percent of the table, rethink; a seq scan may already be optimal.</p>
           <p>Ship the smallest index that changes the plan. You can always add INCLUDE columns later; removing a wide unused index under write load is harder socially than technically. After creating an index I watch query p95, insert p95, index size growth, and whether the planner actually uses it — ANALYZE after bulk imports if plans look stuck.</p>
-
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Indexes speed reads and tax writes — prove the trade with EXPLAIN ANALYZE.</li>
-            <li>Composite column order should follow equality filters then range or sort.</li>
-            <li>Partial and expression indexes beat scattershot single-column indexes.</li>
-            <li>Use CREATE INDEX CONCURRENTLY in production.</li>
-            <li>Audit idx_scan and remove indexes that never earn their keep.</li>
-            <li>Index foreign key columns so deletes and joins do not seq-scan children.</li>
-          </ul>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>

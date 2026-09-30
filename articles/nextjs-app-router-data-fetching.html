@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="Next.js App Router, fetch cache, revalidate, no-store, Server Components, Server Actions">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-06-18">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-06-18">June 18, 2026</time> &bull; 12 min read &bull; ~994 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 4 min read &bull; ~1001 words
             </div>
           </div>
         </header>
@@ -117,7 +118,8 @@ export async function POST(req: NextRequest) {
   if (secret !== process.env.REVALIDATE_SECRET) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  revalidateTag(&#x27;posts&#x27;);
+  // Next.js 16: second argument required; { expire: 0 } expires immediately for webhooks
+  revalidateTag(&#x27;posts&#x27;, { expire: 0 });
   return NextResponse.json({ revalidated: true });
 }</code></pre>
 
@@ -173,7 +175,7 @@ export default function MarketingLayout({ children }) {
 import { cookies } from &#x27;next/headers&#x27;;
 
 export default async function AppLayout({ children }) {
-  const session = cookies().get(&#x27;access_token&#x27;);
+  const session = (await cookies()).get(&#x27;access_token&#x27;);
   return &lt;AppShell signedIn={Boolean(session)}&gt;{children}&lt;/AppShell&gt;;
 }</code></pre>
 
@@ -192,16 +194,6 @@ export default async function AppLayout({ children }) {
           <h2>Debugging why is this stale</h2>
           <p>Check whether you are looking at the Full Route Cache, the Data Cache, or the browser cache. Next.js Dev overlay and logging fetch cache hits in development help. In one case the CDN in front of us cached HTML despite no-store on fetch — we had to set Cache-Control on the response headers from the route.</p>
           <p>Document the caching choice in a one-line comment above non-obvious fetches. My incident checklist order: response headers from the browser, Next fetch cache tags, CDN purge, whether the deploy rolled out to all regions. Skipping the CDN step wasted an hour once. When in doubt I draw three boxes — Data Cache, Full Route Cache, CDN — and mark where the stale bytes live.</p>
-
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Treat every App Router fetch as needing an explicit cache policy.</li>
-            <li>Use time-based revalidate for public content; tags for editor-driven updates.</li>
-            <li>Personalized and financial data should use no-store or force-dynamic.</li>
-            <li>Server Components for initial HTML; client caches for interactive freshness.</li>
-            <li>Stale bugs can live in Next caches, the browser, or your CDN — check all three.</li>
-            <li>Validate Server Action input with Zod and share business logic with other entry points.</li>
-          </ul>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>

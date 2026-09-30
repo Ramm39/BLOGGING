@@ -213,6 +213,7 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                  "WebSockets, Let's Encrypt pitfalls, and production checklist items.",
   'category': 'DevOps',
   'date': '2026-07-05',
+  'updated': '2026-09-29',
   'read_min': 8,
   'keywords': 'nginx reverse proxy nodejs, nginx ssl letsencrypt, proxy_pass node, nginx '
               'websocket, deploy node behind nginx',
@@ -263,7 +264,8 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                         '}\n'
                         '\n'
                         'server {\n'
-                        '  listen 443 ssl http2;\n'
+                        '  listen 443 ssl;\n'
+                        '  http2 on;\n'
                         '  server_name api.example.com;\n'
                         '\n'
                         '  ssl_certificate     '
@@ -313,7 +315,9 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                 'paragraphs': ['Use certbot with the nginx plugin or webroot. Prefer '
                                'fullchain.pem, not cert.pem alone—missing intermediates cause '
                                'mobile clients to fail while desktop Chrome looks fine. Enable a '
-                               'modern cipher suite and turn on OCSP stapling when you have time; '
+                               'modern cipher suite. Skip OCSP stapling with Let’s Encrypt: it ended '
+                               'OCSP in 2025, its certificates carry no OCSP URL, and Nginx ignores '
+                               'ssl_stapling for them with a warning. Enable '
                                'HSTS only after you are sure HTTPS works everywhere.',
                                'Reload Nginx after renewals. Certbot usually installs a timer, but '
                                'I still verify with `sudo nginx -t && sudo systemctl reload nginx` '
@@ -399,6 +403,7 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                  'null caching, and invalidation mistakes from production incidents.',
   'category': 'Backend',
   'date': '2026-07-08',
+  'updated': '2026-09-29',
   'read_min': 8,
   'keywords': 'redis cache aside, redis ttl, cache stampede, redis nodejs caching, cache '
               'invalidation patterns',
@@ -526,7 +531,9 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                                'Alert on eviction spikes and on sustained miss latency, not only '
                                'on Redis CPU. Memory pressure shows up as subtle correctness bugs '
                                'when hot keys disappear under maxmemory policies.',
-                               'Separate Redis logical DBs or key prefixes per environment. '
+                               'Separate Redis instances (or key prefixes) per environment, not '
+                               'numbered logical DBs: Redis Cluster only supports DB 0, and Redis '
+                               'advises against sharing one instance across unrelated apps. '
                                'Pointing staging at production Redis “just for a read” is an '
                                'incident waiting to happen. I namespace keys with env only as a '
                                'last resort—separate instances are clearer.',
@@ -1063,6 +1070,7 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                  'scroll, and resize, plus React-friendly notes from production UI work.',
   'category': 'Frontend',
   'date': '2026-07-22',
+  'updated': '2026-09-29',
   'read_min': 7,
   'keywords': 'debounce vs throttle javascript, debounce javascript, throttle scroll, lodash '
               'debounce, input debounce react',
@@ -1103,19 +1111,39 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                                'field loses focus.'],
                 'code': 'function debounce(fn, wait = 300) {\n'
                         '  let timer;\n'
+                        '  let pending = null;\n'
                         '  function debounced(...args) {\n'
-                        '    const context = this;\n'
+                        '    pending = { context: this, args };\n'
                         '    clearTimeout(timer);\n'
-                        '    timer = setTimeout(() => fn.apply(context, args), wait);\n'
+                        '    timer = setTimeout(debounced.flush, wait);\n'
                         '  }\n'
-                        '  debounced.cancel = () => clearTimeout(timer);\n'
+                        '  debounced.cancel = () => {\n'
+                        '    clearTimeout(timer);\n'
+                        '    pending = null;\n'
+                        '  };\n'
+                        '  debounced.flush = () => {\n'
+                        '    clearTimeout(timer);\n'
+                        '    if (!pending) return;\n'
+                        '    const { context, args } = pending;\n'
+                        '    pending = null;\n'
+                        '    return fn.apply(context, args);\n'
+                        '  };\n'
                         '  return debounced;\n'
                         '}\n'
                         '\n'
                         '// Usage: typeahead\n'
+                        'let controller;\n'
                         'const onQuery = debounce(async (q) => {\n'
-                        '  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);\n'
-                        '  renderResults(await res.json());\n'
+                        '  controller?.abort();\n'
+                        '  controller = new AbortController();\n'
+                        '  try {\n'
+                        '    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {\n'
+                        '      signal: controller.signal,\n'
+                        '    });\n'
+                        '    renderResults(await res.json());\n'
+                        '  } catch (err) {\n'
+                        '    if (err.name !== "AbortError") throw err;\n'
+                        '  }\n'
                         '}, 300);\n'
                         '\n'
                         'input.addEventListener("input", (e) => onQuery(e.target.value));',
@@ -1267,6 +1295,7 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                  'elements, preload pitfalls, CDN tips, and mistakes that made LCP worse.',
   'category': 'Web Performance',
   'date': '2026-07-28',
+  'updated': '2026-09-29',
   'read_min': 8,
   'keywords': 'webp avif optimization, improve lcp images, picture element webp, image compression '
               'web performance, avif vs webp',
@@ -1288,7 +1317,7 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                                'Lighthouse lab scores on desktop hid our mobile LCP pain. Always '
                                'throttle CPU and network or use field data. Optimizing for an '
                                'unthrottled MacBook creates false confidence.',
-                               'Fonts can also be LCP, but on the marketing pages I audit, images '
+                               'Text blocks can also be LCP, but on the marketing pages I audit, images '
                                'win. Still check: if LCP is a text block, your image work will not '
                                'move the metric no matter how clever the codec.']},
                {'h2': 'Encode once, serve many',
@@ -1370,7 +1399,9 @@ ARTICLES = [{'slug': 'css-flexbox-vs-grid',
                                'the same URL the LCP element will use. Shipping only a 3000px AVIF '
                                '“because AVIF is small” still decodes slowly on mid-range phones.',
                                'Another miss: CSS background-image heroes. They are harder to '
-                               'preload and often invisible to LCP candidates the way you expect. '
+                               'preload and are discovered late: the preload scanner does not see '
+                               'images referenced only in CSS, even though they still count as '
+                               'LCP candidates. '
                                'Prefer an `<img>` in the document for the true LCP media.',
                                'Third miss: putting the hero behind a client-only framework render '
                                'with no SSR/HTML placeholder. The browser cannot preload what does '

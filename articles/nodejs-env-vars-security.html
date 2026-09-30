@@ -13,9 +13,10 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/articles/nodejs-env-vars-security.html">
   <meta property="og:site_name" content="BudhiWorks">
-  <meta name="keywords" content="Node.js environment variables, dotenv security, secrets management, process.env, .env.example, credential rotation">
+  <meta name="keywords" content="Node.js environment variables, dotenv security, secrets management, process.env, .env.example, credential rotation, Kubernetes Secrets">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-08-05">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-08-05">August 5, 2026</time> &bull; 8 min read &bull; ~1178 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 7 min read &bull; ~1601 words
             </div>
           </div>
         </header>
@@ -139,18 +140,37 @@ export function redactedEnvSummary() {
           <p>ENV lines in Dockerfiles with real secrets bake values into image layers forever. Use runtime -e flags, orchestration secrets, or build args only for non-secrets. I have pulled “old” images from a registry and found keys from a previous customer still in the history.</p>
           <p>In CI, map secrets from the vault or GitHub Actions secrets into env for the job. Do not echo them in scripts. Mask them in the CI UI. Be careful with set -x in bash—it prints expanded variables.</p>
           <p>Child processes inherit the full environment. If you spawn a CLI tool you do not trust, scrub the env you pass it.</p>
-          <p>Build args in Docker are visible in image history. Never pass secrets as build-arg “just for compile time” unless you use multi-stage builds that truly discard them—and even then prefer runtime injection.</p>
-          <pre><code># Bad: secret baked into image
-# ENV STRIPE_SECRET_KEY=sk_live_...
+          <p>Build args in Docker are visible in image history. Never pass secrets as build-arg “just for compile time”: a build arg used in the final stage of a multi-stage build still lands in that image’s history. For secrets a build step really needs (a private registry token for npm ci, say), use a BuildKit secret mount (RUN --mount=type=secret), which exposes the value to that one RUN step without writing it to a layer. For everything the app needs at run time, prefer runtime injection.</p>
+          <pre><code>// Bad: secret baked into image
+// ENV STRIPE_SECRET_KEY=sk_live_...
 
-# Better: inject at runtime
-# docker run -e STRIPE_SECRET_KEY --env-file /run/secrets/app.env myapp
+// Better: inject at runtime
+// docker run -e STRIPE_SECRET_KEY --env-file /run/secrets/app.env myapp
 
-# In Node when spawning untrusted tools:
+// Build-time secret without baking it into a layer (BuildKit):
+// Dockerfile:  RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm ci
+// Build:       docker build --secret id=npmrc,src=$HOME/.npmrc .
+
+// In Node when spawning untrusted tools:
 import { spawn } from &#x27;node:child_process&#x27;;
 spawn(&#x27;some-tool&#x27;, [], {
   env: { PATH: process.env.PATH, HOME: process.env.HOME },
 });</code></pre>
+
+          <h2>Kubernetes Secrets for Node apps</h2>
+          <p>A Kubernetes Secret is not encrypted just because it is a Secret. The base64 in its YAML is an encoding for the API, and base64 -d reverses it. By default the API server stores Secret data in etcd unencrypted, so anyone who can read the Secret object, or etcd and its backups, can read the credential. A Secret manifest committed to git is a plaintext secret in git.</p>
+          <p>How the pod consumes a Secret decides what happens on rotation. Environment variables set from a Secret (env with secretKeyRef, or envFrom) are fixed when the container starts and never change in a running container, so a new value needs a pod restart, for example kubectl rollout restart deployment/api. Files from a Secret volume are updated by the kubelet after the Secret changes, eventually rather than instantly, but a Secret mounted with subPath never receives updates. A Node app that reads the file once at boot still needs a restart or a re-read to pick up a rotated value.</p>
+          <p>Protect the object itself. Enable encryption at rest with the kube-apiserver flag --encryption-provider-config pointing at an EncryptionConfiguration, preferably with a KMS provider; managed platforms expose their own setting for this, so check it rather than assume. Restrict get, list and watch on secrets with RBAC to the workloads and people that need them: list and watch return Secret contents too, and anyone who can create a pod in a namespace can mount that namespace’s Secrets.</p>
+          <p>For production, keep the source of truth in an external manager such as Vault, AWS Secrets Manager, GCP Secret Manager or Azure Key Vault, and bring values into the cluster with the External Secrets Operator or the Secrets Store CSI Driver. Rotation and audit then happen in one place, and git only holds references to secret names, never values.</p>
+          <pre><code>import { readFileSync } from &#x27;node:fs&#x27;;
+
+// Secret volume mounted at /var/run/secrets/db (no subPath, so updates arrive)
+const PASSWORD_FILE = process.env.DB_PASSWORD_FILE ?? &#x27;/var/run/secrets/db/password&#x27;;
+
+// Read at connect time, not once at boot, so a rotated password is picked up
+export function dbPassword() {
+  return readFileSync(PASSWORD_FILE, &#x27;utf8&#x27;).trim();
+}</code></pre>
 
           <h2>Rotation and least privilege</h2>
           <p>Assume every secret will eventually leak. Design for rotation: short TTLs where the provider allows it, dual-key windows for JWT signing, and runbooks that do not require a full outage.</p>
@@ -185,8 +205,9 @@ spawn(&#x27;some-tool&#x27;, [], {
 
           <h2>Example: stripping secrets from error reports</h2>
           <p>Error trackers love to serialize the world. I keep a denylist of env key substrings—SECRET, TOKEN, PASSWORD, KEY, PRIVATE—and scrub matching values before events leave the process. Framework defaults are not enough; custom context objects still leak.</p>
+          <p>The scrubber below matches key names, so KEY also catches SIGNING_KEY and accessKeyId. It does not inspect free-text values: a token pasted into an error message or log line needs a separate value check, such as a regex for your providers’ known key prefixes.</p>
           <p>I also scrub Authorization headers and cookie values in HTTP error breadcrumbs. A single 500 on /checkout should not upload a session token to a SaaS you forgot was enabled in staging.</p>
-          <pre><code>const SECRETISH = /(secret|token|password|passwd|api[_-]?key|private)/i;
+          <pre><code>const SECRETISH = /(secret|token|password|passwd|key|private|authorization|cookie)/i;
 
 function scrub(value) {
   if (value == null) return value;
@@ -205,6 +226,8 @@ function scrub(value) {
 function beforeSend(event) {
   event.extra = scrub(event.extra);
   event.contexts = scrub(event.contexts);
+  event.request = scrub(event.request); // headers: Authorization, Cookie
+  event.breadcrumbs = scrub(event.breadcrumbs);
   return event;
 }</code></pre>
 
@@ -212,16 +235,6 @@ function beforeSend(event) {
           <p>Onboarding docs should show how to get local secrets from 1Password or the company vault—not from a zip file in Drive. Shared .env files in chat are a process failure.</p>
           <p>When someone leaves the team, rotate shared secrets they could access. Individual cloud IAM keys are easier to revoke than a single DATABASE_URL everyone copied.</p>
           <p>I schedule a quarterly secret review: list env keys in production, confirm each is still needed, confirm rotation dates. Unused keys get deleted. Unused credentials still unlock systems.</p>
-
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Env vars deliver secrets; they do not protect them from logs, children, or images.</li>
-            <li>Commit .env.example only; keep real .env files out of git and Docker layers.</li>
-            <li>Validate required env at boot in one module and fail fast on missing keys.</li>
-            <li>Never log process.env; log a redacted summary of non-secret config.</li>
-            <li>Inject secrets at runtime in production—prefer a secret manager over files on disk.</li>
-            <li>Isolate credentials per service and practice rotation before you need it.</li>
-          </ul>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>

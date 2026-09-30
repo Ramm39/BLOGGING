@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="redis cache aside, redis ttl, cache stampede, redis nodejs caching, cache invalidation patterns">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-07-08">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-07-08">July 8, 2026</time> &bull; 8 min read &bull; ~1095 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1114 words
             </div>
           </div>
         </header>
@@ -146,7 +147,7 @@
           <p>Hit rate alone is vanity. I watch miss latency, DB QPS on hot endpoints, Redis memory, and eviction counts. A 99% hit rate with multi-second miss latency still fails users during expiry storms.</p>
           <p>Also log cache key cardinality. Unbounded keys like `search:${rawQuery}` will fill Redis with one-off garbage. Hash or normalize queries, or do not cache them.</p>
           <p>Alert on eviction spikes and on sustained miss latency, not only on Redis CPU. Memory pressure shows up as subtle correctness bugs when hot keys disappear under maxmemory policies.</p>
-          <p>Separate Redis logical DBs or key prefixes per environment. Pointing staging at production Redis “just for a read” is an incident waiting to happen. I namespace keys with env only as a last resort—separate instances are clearer.</p>
+          <p>Separate Redis instances (or key prefixes) per environment, not numbered logical DBs: Redis Cluster only supports DB 0, and Redis advises against sharing one instance across unrelated apps. Pointing staging at production Redis “just for a read” is an incident waiting to happen. I namespace keys with env only as a last resort—separate instances are clearer.</p>
           <p>Export Redis info metrics to the same dashboard as API latency. Correlating eviction spikes with p95 is how we found a cardinality bug in a week instead of a quarter.</p>
 
           <h2>Serialization and payload size</h2>
@@ -163,16 +164,6 @@
             <li>Document who owns invalidation for each hot key family</li>
           </ul>
 
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Cache-aside keeps Redis off the critical write path</li>
-            <li>Pick TTLs from data volatility, not habit</li>
-            <li>Prevent stampedes with short locks or early refresh</li>
-            <li>Negative-cache missing keys briefly</li>
-            <li>Fail open to the DB if Redis is slow or down</li>
-            <li>Prefer short TTL over complex fan-out invalidation when unsure</li>
-          </ul>
-
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
             <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
@@ -183,7 +174,7 @@
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
         <a href="nginx-reverse-proxy-setup.html" class="btn btn-secondary">&larr; Nginx Reverse Proxy for Node Apps (With SS…</a>
-        <a href="github-actions-ci-cd.html" class="btn btn-primary">Next: GitHub Actions CI/CD for Node Apps: Test, … &rarr;</a>
+        <a href="debounce-throttle-javascript.html" class="btn btn-primary">Next: Debounce vs Throttle in JavaScript (With C… &rarr;</a>
       </div>
     </div>
   </main>

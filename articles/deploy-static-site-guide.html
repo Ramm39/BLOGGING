@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="deploy static site, Netlify deploy, GitHub Pages, Nginx static files, HTTPS Let&#x27;s Encrypt, cache-control headers">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-08-27">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-08-27">August 27, 2026</time> &bull; 8 min read &bull; ~1196 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 7 min read &bull; ~1638 words
             </div>
           </div>
         </header>
@@ -99,6 +100,7 @@
 [[headers]]
   for = &quot;/assets/*&quot;
   [headers.values]
+    # Only safe if files under /assets have content-hashed names
     Cache-Control = &quot;public, max-age=31536000, immutable&quot;
 
 [[headers]]
@@ -136,9 +138,21 @@ jobs:
           <h2>Option C: Nginx on a VPS</h2>
           <p>For full control I rsync the site to /var/www/site and point Nginx at it. Certbot handles Let’s Encrypt certificates. This path costs more ops time and gives you exact cache and header behavior.</p>
           <p>rsync with --delete prevents old articles from lingering after renames. I learned that when a deleted draft kept ranking in search because the file never left the server.</p>
-          <pre><code>server {
-  listen 443 ssl http2;
+          <p>The deploy itself runs from your machine or CI, not from the Nginx config: rsync -avz --delete ./site/ user@server:/var/www/site/</p>
+          <pre><code># Redirect all HTTP to HTTPS (certbot --nginx can add this for you)
+server {
+  listen 80;
   server_name example.com www.example.com;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl;
+  http2 on;  # nginx 1.25.1+; replaces the deprecated &quot;listen ... http2&quot;
+  server_name example.com www.example.com;
+
+  ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
 
   root /var/www/site;
   index index.html;
@@ -147,18 +161,61 @@ jobs:
     try_files $uri $uri/ =404;
   }
 
-  location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|webp|woff2)$ {
-    expires 30d;
-    add_header Cache-Control &quot;public&quot;;
+  # Fingerprinted files (e.g. app.3f9a1c2b.css) never change: cache for a year
+  # Regexes containing { } must be quoted in nginx config
+  location ~* &quot;\.[0-9a-f]{8,}\.(css|js|jpg|jpeg|png|gif|ico|svg|webp|woff2)$&quot; {
+    add_header Cache-Control &quot;public, max-age=31536000, immutable&quot;;
   }
 
-  location ~* \.html$ {
+  # Un-hashed assets and HTML: revalidate on each use (cheap 304s via ETag)
+  location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|webp|woff2|html)$ {
     add_header Cache-Control &quot;no-cache&quot;;
   }
-}
+}</code></pre>
 
-# Deploy
-rsync -avz --delete ./site/ user@server:/var/www/site/</code></pre>
+          <h2>Automating the VPS deploy with GitHub Actions</h2>
+          <p>Once a site has a build step, a workflow on main can build and rsync it so nobody deploys from a laptop. The example below checks out the repo, installs a current Node LTS with actions/setup-node (Node 20 reached end of life in April 2026, so use 22 or 24), runs npm ci against the committed lockfile, builds, and syncs dist/ to the Nginx root with --delete. Adjust dist/ to your publish directory, or drop the Node steps if the site has no build.</p>
+          <p>The SSH step needs a known_hosts entry as well as the key; without one, rsync stops with “Host key verification failed”. Generate the entry once from a machine you trust (ssh-keyscan -t ed25519 your.server), compare its fingerprint with ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub on the server, and store it as the DEPLOY_KNOWN_HOSTS secret. Turning off StrictHostKeyChecking instead removes the protection against a spoofed host. Keep the three secrets in a GitHub environment named production so deploys can require a reviewer.</p>
+          <p>The concurrency block allows one deploy at a time. By default a newer run waits and replaces any older pending run, so an older commit cannot deploy after a newer one. cancel-in-progress: true would also cancel a deploy that is already running, which can stop rsync halfway through. For GitHub Pages, use the Option B workflow instead; this one is for servers you control.</p>
+          <pre><code># .github/workflows/deploy.yml
+name: Build and deploy
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One deploy at a time; a newer run replaces any older *pending* run
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/id_ed25519
+          printf &#x27;%s\n&#x27; &quot;$SSH_KEY&quot; &gt; ~/.ssh/id_ed25519
+          printf &#x27;%s\n&#x27; &quot;$KNOWN_HOSTS&quot; &gt; ~/.ssh/known_hosts
+      - name: Rsync to server
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: rsync -az --delete dist/ &quot;deploy@$HOST:/var/www/site/&quot;</code></pre>
 
           <h2>Caching and cache-busting</h2>
           <p>Hash filenames for CSS/JS when you have a build step, then cache them forever. HTML should revalidate so users pick up new asset references. Without that split, you either break users with stale HTML pointing at missing hashed files, or you never cache and waste bandwidth.</p>
@@ -188,7 +245,7 @@ rsync -avz --delete ./site/ user@server:/var/www/site/</code></pre>
           <h2>SPAs versus multi-page static sites</h2>
           <p>Multi-page static HTML (like this blogging repo) needs try_files that serve real files and a clean 404. SPA mode that rewrites everything to index.html will hide missing articles as the homepage shell—bad for content sites.</p>
           <p>If you do ship an SPA admin elsewhere, use a separate location block or host. Do not reuse the blog’s Nginx try_files for an app that needs history API fallbacks.</p>
-          <p>Precompress assets with gzip or brotli at the CDN. Nginx can serve precompressed .br files when configured. It is free performance for text-heavy blogs.</p>
+          <p>Precompress assets with gzip or brotli at the CDN. On Nginx, gzip_static on serves precompressed .gz files (the module ships in most distro and nginx.org packages); serving .br files needs the separate ngx_brotli module and its brotli_static directive. It is free performance for text-heavy blogs.</p>
           <ul>
             <li>Content sites: real paths and real 404 pages</li>
             <li>SPA fallbacks only where the app needs them</li>
@@ -198,11 +255,15 @@ rsync -avz --delete ./site/ user@server:/var/www/site/</code></pre>
 
           <h2>Headers worth setting on day one</h2>
           <p>Besides cache policy, I set X-Content-Type-Options nosniff, a conservative Referrer-Policy, and a Content-Security-Policy that fits the site. Static blogs can use strict CSPs more easily than complex SPAs.</p>
+          <p>The CSP has to allow everything the page really loads, and ads load a lot. AdSense code pulls further scripts and iframes from several Google domains that change over time, so an allowlist such as script-src &#x27;self&#x27; https://pagead2.googlesyndication.com under default-src &#x27;self&#x27; blocks the ads. Google supports only a nonce-based strict CSP for AdSense, shown below. The nonce must be random on every response, so a purely static host has to inject it at the edge or in the web server; where that is not possible, leave script-src out rather than ship a policy that breaks ads. Test any policy with Content-Security-Policy-Report-Only first.</p>
           <p>HSTS comes after you are sure HTTPS works on all subdomains you cover. Premature HSTS with includeSubDomains has locked teams out of internal HTTP tools on sibling hosts.</p>
           <p>Security headers do not replace careful script hygiene. They reduce blast radius when a mistake happens.</p>
-          <pre><code>Content-Security-Policy: default-src &#x27;self&#x27;; img-src &#x27;self&#x27; data: https:; \
-  style-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;; script-src &#x27;self&#x27; https://pagead2.googlesyndication.com; \
-  frame-ancestors &#x27;none&#x27;;
+          <pre><code># Strict CSP in the form Google supports for AdSense. {random} must be a fresh,
+# unguessable value per response; put the same value in nonce=&quot;...&quot; on the
+# adsbygoogle.js script tag and on the inline (adsbygoogle = ...).push() script.
+Content-Security-Policy: object-src &#x27;none&#x27;; \
+  script-src &#x27;nonce-{random}&#x27; &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;strict-dynamic&#x27; https: http:; \
+  base-uri &#x27;none&#x27;; frame-ancestors &#x27;none&#x27;
 Referrer-Policy: strict-origin-when-cross-origin
 X-Content-Type-Options: nosniff</code></pre>
 
@@ -223,16 +284,6 @@ X-Content-Type-Options: nosniff</code></pre>
             <li>Monitor 404s after cutover</li>
           </ul>
 
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Static hosting is a publish-directory problem plus HTTPS and cache policy.</li>
-            <li>Netlify.toml (or equivalent) keeps headers and publish settings in git.</li>
-            <li>GitHub Pages project URLs need correct base paths for assets.</li>
-            <li>On a VPS, rsync --delete and Certbot plus clear Nginx cache rules.</li>
-            <li>Cache hashed assets forever; revalidate HTML so references stay fresh.</li>
-            <li>Verify deep links, HTTPS, and asset URLs after every first deploy to a new host.</li>
-          </ul>
-
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
             <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
@@ -242,7 +293,7 @@ X-Content-Type-Options: nosniff</code></pre>
       </article>
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-        <a href="kubernetes-secrets-management.html" class="btn btn-secondary">&larr; Kubernetes Secrets Management Basics Witho…</a>
+        <a href="vite-vs-webpack.html" class="btn btn-secondary">&larr; Vite vs Webpack in 2026: When I Pick Which…</a>
         <a href="../start-here.html" class="btn btn-primary">Start here &rarr;</a>
       </div>
     </div>

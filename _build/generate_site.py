@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rebuild BudhiWorks static site: 25 practical articles + utility pages."""
+"""Rebuild BudhiWorks static site: practical articles + utility pages."""
 
 from __future__ import annotations
 
@@ -17,7 +17,28 @@ from articles_batch_a import ARTICLES as A  # noqa: E402
 from articles_batch_b import ARTICLES as B  # noqa: E402
 from articles_batch_c import ARTICLES as C  # noqa: E402
 
-ARTICLES = sorted(A + B + C, key=lambda x: x["date"], reverse=True)
+# Real first-publish date of the current catalog (git commit 51de125, 29 Aug 2026).
+# The per-article "date" field is kept only as a stable sort order.
+PUBLISHED = "2026-08-29"
+
+# Removed in the Sep 2026 cleanup. Merged guides 301 to their new home (see _redirects);
+# cut guides are gone and return 404.
+CUT = {
+    "accessibility-wcag-checklist",
+    "sql-vs-nosql-when-to-choose",
+    "rest-api-design-best-practices",
+    "css-flexbox-vs-grid",
+}
+MERGED = {
+    "kubernetes-secrets-management": "nodejs-env-vars-security",
+    "github-actions-ci-cd": "deploy-static-site-guide",
+}
+
+ARTICLES = sorted(
+    [a for a in A + B + C if a["slug"] not in CUT and a["slug"] not in MERGED],
+    key=lambda x: x["date"],
+    reverse=True,
+)
 
 AUTHOR = {
     "name": "Ram",
@@ -174,16 +195,36 @@ def word_count(article: dict) -> int:
         n += sum(len(b.split()) for b in s.get("bullets", []) or [])
         if s.get("code"):
             n += max(1, len(s["code"].split()) // 3)
+    # "What you will learn" is shown once, above the body.
     n += sum(len(t.split()) for t in article["takeaways"])
     n += len(article["excerpt"].split())
     return n
 
 
+def read_minutes(article: dict) -> int:
+    """Reading time from the real word count at ~230 words per minute."""
+    return max(3, round(word_count(article) / 230))
+
+
+def published(article: dict) -> str:
+    return article.get("published", PUBLISHED)
+
+
+def lastmod(article: dict) -> str:
+    return article.get("updated") or published(article)
+
+
 def write_article(article: dict, index: int) -> None:
     words = word_count(article)
-    read_min = article.get("read_min") or max(6, words // 180)
-    date_iso = article["date"]
+    read_min = read_minutes(article)
+    date_iso = published(article)
     date_human = fmt_date(date_iso)
+    updated = article.get("updated")
+    updated_html = (
+        f' &bull; Updated <time datetime="{esc(updated)}">{esc(fmt_date(updated))}</time>'
+        if updated
+        else ""
+    )
     prev_a = ARTICLES[index + 1] if index + 1 < len(ARTICLES) else None
     next_a = ARTICLES[index - 1] if index > 0 else None
 
@@ -212,7 +253,7 @@ def write_article(article: dict, index: int) -> None:
             <div class="author-avatar">{esc(AUTHOR["initials"])}</div>
             <div>
               <strong>By <a href="../author.html">{esc(AUTHOR["name"])}</a></strong><br>
-              <time datetime="{esc(date_iso)}">{esc(date_human)}</time> &bull; {read_min} min read &bull; ~{words} words
+              Published <time datetime="{esc(date_iso)}">{esc(date_human)}</time>{updated_html} &bull; {read_min} min read &bull; ~{words} words
             </div>
           </div>
         </header>
@@ -226,11 +267,6 @@ def write_article(article: dict, index: int) -> None:
 
         <div class="article-body article-prose">
 {sections_html}
-
-          <h2>Key takeaways</h2>
-          <ul>
-{takeaways}
-          </ul>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
@@ -251,6 +287,8 @@ def write_article(article: dict, index: int) -> None:
         f'  <meta name="keywords" content="{esc(article["keywords"])}">\n'
         f'  <meta property="og:type" content="article">\n'
         f'  <meta property="article:published_time" content="{esc(date_iso)}">\n'
+        + (f'  <meta property="article:modified_time" content="{esc(updated)}">\n' if updated else "")
+        +
         f'  <meta property="article:author" content="{esc(AUTHOR["name"])}">\n'
     )
     page = shell(
@@ -267,7 +305,7 @@ def write_article(article: dict, index: int) -> None:
 
 def write_index() -> None:
     cats = sorted({a["category"] for a in ARTICLES})
-    filters = ['<button class="filter-btn active" type="button" data-filter="all">All (25)</button>']
+    filters = [f'<button class="filter-btn active" type="button" data-filter="all">All ({len(ARTICLES)})</button>']
     for c in cats:
         count = sum(1 for a in ARTICLES if a["category"] == c)
         filters.append(
@@ -284,7 +322,7 @@ def write_index() -> None:
         <h2 class="card-title"><a href="articles/{esc(a["slug"])}.html">{esc(a["title"])}</a></h2>
         <p class="card-excerpt">{esc(a["excerpt"])}</p>
         <div class="card-footer">
-          <div class="card-meta">By {esc(AUTHOR["name"])} • {esc(fmt_date(a["date"]))} • {a["read_min"]} min read</div>
+          <div class="card-meta">By {esc(AUTHOR["name"])} • {esc(fmt_date(published(a)))} • {read_minutes(a)} min read</div>
         </div>
       </article>"""
         )
@@ -295,7 +333,7 @@ def write_index() -> None:
         <div class="hero-content">
           <span class="badge badge-cyan" style="margin-bottom: 1rem;">Practical engineering guides</span>
           <h1>Build, ship, and debug with clarity</h1>
-          <p class="hero-subtitle">25 original how-to guides on web performance, APIs, databases, DevOps, and frontend — written for developers who search when something is broken.</p>
+          <p class="hero-subtitle">{len(ARTICLES)} original how-to guides on web performance, APIs, databases, DevOps, and frontend — written for developers who search when something is broken.</p>
           <p style="margin: 1rem 0 0;"><a class="btn btn-primary" href="start-here.html">New here? Start here</a>
           <a class="btn btn-secondary" href="resources.html" style="margin-left:0.5rem;">Useful resources</a></p>
 
@@ -351,7 +389,7 @@ def write_about() -> None:
         <ul>
           <li>Problems people actually type into Google (CORS, JWT cookies, Core Web Vitals, Docker Compose).</li>
           <li>Guides with copy-pasteable commands and the failure modes I have hit in production.</li>
-          <li>A small catalog (25 strong posts) instead of a flood of lookalike essays.</li>
+          <li>A small catalog ({len(ARTICLES)} posts) instead of a flood of lookalike essays.</li>
         </ul>
       </section>
 
@@ -424,7 +462,7 @@ def write_contact() -> None:
 
 def write_author() -> None:
     recent = "\n".join(
-        f'            <li><a href="articles/{esc(a["slug"])}.html">{esc(a["title"])}</a> — {esc(fmt_date(a["date"]))}</li>'
+        f'            <li><a href="articles/{esc(a["slug"])}.html">{esc(a["title"])}</a> — {esc(fmt_date(published(a)))}</li>'
         for a in ARTICLES[:8]
     )
     body = f"""  <main class="main-content">
@@ -448,7 +486,7 @@ def write_author() -> None:
         <ul>
 {recent}
         </ul>
-        <p><a href="index.html#articles">Browse all 25 guides</a> · <a href="editorial-policy.html">How we edit</a></p>
+        <p><a href="index.html#articles">Browse all {len(ARTICLES)} guides</a> · <a href="editorial-policy.html">How we edit</a></p>
       </div>
     </div>
   </main>"""
@@ -500,11 +538,11 @@ def write_editorial() -> None:
 
 def write_start_here() -> None:
     paths = [
-        ("Stuck on an API error", ["how-to-fix-cors-errors", "jwt-authentication-nodejs", "api-rate-limiting", "rest-api-design-best-practices"]),
+        ("Stuck on an API error", ["how-to-fix-cors-errors", "jwt-authentication-nodejs", "api-rate-limiting", "nodejs-env-vars-security"]),
         ("Making pages faster", ["core-web-vitals-guide", "optimize-images-webp-avif", "debounce-throttle-javascript"]),
-        ("Local & production ops", ["docker-compose-for-developers", "nginx-reverse-proxy-setup", "github-actions-ci-cd", "deploy-static-site-guide"]),
-        ("Data layer", ["postgresql-indexes-explained", "redis-caching-patterns", "sql-vs-nosql-when-to-choose", "mongodb-aggregation-pipeline"]),
-        ("Frontend craft", ["react-useeffect-common-mistakes", "nextjs-app-router-data-fetching", "css-flexbox-vs-grid", "accessibility-wcag-checklist", "typescript-generics-practical-guide"]),
+        ("Local & production ops", ["docker-compose-for-developers", "nginx-reverse-proxy-setup", "deploy-static-site-guide", "debug-nodejs-memory-leaks"]),
+        ("Data layer", ["postgresql-indexes-explained", "redis-caching-patterns", "mongodb-aggregation-pipeline"]),
+        ("Frontend craft", ["react-useeffect-common-mistakes", "nextjs-app-router-data-fetching", "typescript-generics-practical-guide", "vite-vs-webpack"]),
     ]
     by_slug = {a["slug"]: a for a in ARTICLES}
     blocks = []
@@ -608,7 +646,7 @@ def write_sitemap() -> None:
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
     for path, prio in urls:
-        last = ARTICLES[0]["date"] if ARTICLES else "2026-08-29"
+        last = max(lastmod(a) for a in ARTICLES) if ARTICLES else PUBLISHED
         lines.append("  <url>")
         lines.append(f"    <loc>{SITE}{path if path != '/' else '/'}</loc>")
         lines.append(f"    <lastmod>{last}</lastmod>")
@@ -617,11 +655,17 @@ def write_sitemap() -> None:
     for a in ARTICLES:
         lines.append("  <url>")
         lines.append(f"    <loc>{SITE}/articles/{a['slug']}.html</loc>")
-        lines.append(f"    <lastmod>{a['date']}</lastmod>")
+        lines.append(f"    <lastmod>{lastmod(a)}</lastmod>")
         lines.append("    <priority>0.8</priority>")
         lines.append("  </url>")
     lines.append("</urlset>")
     (ROOT / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_redirects() -> None:
+    """Netlify redirects: merged guides move permanently to the article that absorbed them."""
+    lines = [f"/articles/{src}.html  /articles/{dst}.html  301" for src, dst in sorted(MERGED.items())]
+    (ROOT / "_redirects").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def patch_legal_nav() -> None:
@@ -651,6 +695,7 @@ def main() -> None:
     write_resources()
     write_sitemap()
     patch_legal_nav()
+    write_redirects()
 
     print(f"Generated {len(ARTICLES)} articles + core pages in {ROOT}")
     print("Categories:", sorted({a["category"] for a in ARTICLES}))

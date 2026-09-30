@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="Docker Compose, Node.js, Postgres, Redis, local development, healthcheck, volumes">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-06-11">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-06-11">June 11, 2026</time> &bull; 12 min read &bull; ~1031 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1041 words
             </div>
           </div>
         </header>
@@ -87,7 +88,7 @@
           <p>I also set restart unless-stopped on db and redis for long-lived laptops, and I keep resource limits light so a runaway migration cannot freeze Docker Desktop. Memory 512M for Postgres is enough for local datasets under a few GB.</p>
           <pre><code>services:
   db:
-    image: postgres:16.3-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
@@ -102,9 +103,15 @@
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   redis:
-    image: redis:7.2-alpine
+    image: redis:7.4-alpine
+    restart: unless-stopped
     ports:
       - &quot;6379:6379&quot;
     command: [&quot;redis-server&quot;, &quot;--save&quot;, &quot;60&quot;, &quot;1&quot;, &quot;--loglevel&quot;, &quot;warning&quot;]
@@ -175,7 +182,7 @@ exit 1</code></pre>
           <p>docker compose down keeps volumes. docker compose down -v wipes Postgres data — useful for migration experiments, catastrophic if you thought it was a soft stop. I alias dc-reset only after confirming the project name.</p>
           <p>For shared laptops, set COMPOSE_PROJECT_NAME so volume names do not collide with another repo also calling its service db.</p>
           <ul>
-            <li>Pin major.minor image tags</li>
+            <li>Pin image tags to a release line (postgres:16, redis:7.4), never latest</li>
             <li>Healthcheck before depends_on</li>
             <li>Use service DNS names inside the network</li>
             <li>Anonymous volume for node_modules on bind mounts</li>
@@ -191,16 +198,6 @@ exit 1</code></pre>
           <p>I avoid shipping production secrets in compose. Local passwords are app/app and never reused. I do not emulate the full Kubernetes mesh locally unless we are debugging mesh-specific bugs — Compose is for data stores and optional API parity.</p>
           <p>Redis persistence is optional locally; I enable light RDB saves so cache warmups survive a reboot during a long feature branch. Postgres init scripts run only on empty volumes — after the first boot, change schema with migrations, not by editing init.sql and expecting it to re-run.</p>
           <p>In GitHub Actions we run the same Compose file for db and redis, wait for health, then run tests on published ports. Flakes dropped once healthchecks gated the test start instead of a fixed sleep 10. Publish a one-line happy path in the README: compose up db redis, copy env, npm i, npm run dev.</p>
-
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Compose the databases; optionally run Node on the host for faster reload.</li>
-            <li>Pin image versions and wait on healthchecks before starting the API.</li>
-            <li>localhost versus service name depends on whether the process is in a container.</li>
-            <li>Bind-mount source with an anonymous node_modules volume to avoid native binary clashes.</li>
-            <li>Treat down -v as destructive; use a unique COMPOSE_PROJECT_NAME per repo.</li>
-            <li>Run migrations as an explicit step with retries, not as a silent boot side effect.</li>
-          </ul>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>

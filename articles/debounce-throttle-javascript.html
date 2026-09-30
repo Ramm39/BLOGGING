@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="debounce vs throttle javascript, debounce javascript, throttle scroll, lodash debounce, input debounce react">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-07-22">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-07-22">July 22, 2026</time> &bull; 7 min read &bull; ~949 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 4 min read &bull; ~968 words
             </div>
           </div>
         </header>
@@ -90,19 +91,39 @@
           <p>Expose cancel() and flush() if your UX needs “run now on blur.” Forms often debounce input but should flush pending saves when the field loses focus.</p>
           <pre><code>function debounce(fn, wait = 300) {
   let timer;
+  let pending = null;
   function debounced(...args) {
-    const context = this;
+    pending = { context: this, args };
     clearTimeout(timer);
-    timer = setTimeout(() =&gt; fn.apply(context, args), wait);
+    timer = setTimeout(debounced.flush, wait);
   }
-  debounced.cancel = () =&gt; clearTimeout(timer);
+  debounced.cancel = () =&gt; {
+    clearTimeout(timer);
+    pending = null;
+  };
+  debounced.flush = () =&gt; {
+    clearTimeout(timer);
+    if (!pending) return;
+    const { context, args } = pending;
+    pending = null;
+    return fn.apply(context, args);
+  };
   return debounced;
 }
 
 // Usage: typeahead
+let controller;
 const onQuery = debounce(async (q) =&gt; {
-  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-  renderResults(await res.json());
+  controller?.abort();
+  controller = new AbortController();
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {
+      signal: controller.signal,
+    });
+    renderResults(await res.json());
+  } catch (err) {
+    if (err.name !== &quot;AbortError&quot;) throw err;
+  }
 }, 300);
 
 input.addEventListener(&quot;input&quot;, (e) =&gt; onQuery(e.target.value));</code></pre>
@@ -204,15 +225,6 @@ function useDebouncedValue(value, wait = 300) {
             <li>Handle 429 with backoff even on first-party UIs</li>
           </ul>
 
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Debounce waits for quiet; throttle paces a storm</li>
-            <li>Search inputs → debounce; scroll/resize → throttle</li>
-            <li>Always cancel timers on unmount</li>
-            <li>Abort in-flight fetches when debounced queries change</li>
-            <li>Do not recreate debounced functions every React render</li>
-          </ul>
-
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
             <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
@@ -222,7 +234,7 @@ function useDebouncedValue(value, wait = 300) {
       </article>
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-        <a href="sql-vs-nosql-when-to-choose.html" class="btn btn-secondary">&larr; SQL vs NoSQL: A Decision Guide From Real P…</a>
+        <a href="redis-caching-patterns.html" class="btn btn-secondary">&larr; Redis Caching Patterns I Use: Cache-Aside,…</a>
         <a href="optimize-images-webp-avif.html" class="btn btn-primary">Next: WebP and AVIF Image Optimization That Actu… &rarr;</a>
       </div>
     </div>

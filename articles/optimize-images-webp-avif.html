@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="webp avif optimization, improve lcp images, picture element webp, image compression web performance, avif vs webp">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-07-28">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-07-28">July 28, 2026</time> &bull; 8 min read &bull; ~990 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 4 min read &bull; ~1004 words
             </div>
           </div>
         </header>
@@ -82,7 +83,7 @@
           <p>I once “optimized” a site by lazy-loading the hero. LCP got worse because the browser deprioritized the most important paint. Rule: LCP image gets eager loading and high fetch priority; everything below the fold can be lazy.</p>
           <p>Confirm the LCP element in field data or a throttled lab run before you spend a week converting a thousand blog thumbnails. Fix the winner first.</p>
           <p>Lighthouse lab scores on desktop hid our mobile LCP pain. Always throttle CPU and network or use field data. Optimizing for an unthrottled MacBook creates false confidence.</p>
-          <p>Fonts can also be LCP, but on the marketing pages I audit, images win. Still check: if LCP is a text block, your image work will not move the metric no matter how clever the codec.</p>
+          <p>Text blocks can also be LCP, but on the marketing pages I audit, images win. Still check: if LCP is a text block, your image work will not move the metric no matter how clever the codec.</p>
 
           <h2>Encode once, serve many</h2>
           <p>Generate AVIF and WebP from a high-quality source (not from an already crushed JPEG). Keep a JPEG/PNG fallback for ancient clients. I aim for visually lossless enough at the sizes we actually display—not a 2400px asset in a 600px slot.</p>
@@ -140,7 +141,7 @@ await sharp(&quot;hero.png&quot;)
 
           <h2>Mistakes that made LCP worse</h2>
           <p>Preloading a WebP while the page actually paints an AVIF from `&lt;picture&gt;` wastes bandwidth and confuses prioritization—preload the same URL the LCP element will use. Shipping only a 3000px AVIF “because AVIF is small” still decodes slowly on mid-range phones.</p>
-          <p>Another miss: CSS background-image heroes. They are harder to preload and often invisible to LCP candidates the way you expect. Prefer an `&lt;img&gt;` in the document for the true LCP media.</p>
+          <p>Another miss: CSS background-image heroes. They are harder to preload and are discovered late: the preload scanner does not see images referenced only in CSS, even though they still count as LCP candidates. Prefer an `&lt;img&gt;` in the document for the true LCP media.</p>
           <p>Third miss: putting the hero behind a client-only framework render with no SSR/HTML placeholder. The browser cannot preload what does not exist in the first HTML byte.</p>
           <p>Priority hints are hints. If the HTML discovers the hero late because it sits under a banner injected by JS, fix discovery order before tweaking quality dials.</p>
           <ul>
@@ -176,16 +177,6 @@ await sharp(&quot;hero.png&quot;)
   loading=&quot;lazy&quot;
   decoding=&quot;async&quot;
 /&gt;</code></pre>
-
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Fix the LCP image first: format, size, priority, discovery</li>
-            <li>Serve AVIF → WebP → JPEG/PNG via picture</li>
-            <li>Never lazy-load the LCP asset</li>
-            <li>Match preload to the actual painted resource</li>
-            <li>Responsive widths matter as much as codec choice</li>
-            <li>Validate with mobile field or throttled lab data</li>
-          </ul>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>

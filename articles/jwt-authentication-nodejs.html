@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="JWT authentication, refresh token, httpOnly cookie, Node.js Express, access token, token rotation">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-06-08">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-06-08">June 8, 2026</time> &bull; 12 min read &bull; ~1000 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1045 words
             </div>
           </div>
         </header>
@@ -83,7 +84,7 @@
           <p>Our pen-test writeup put it bluntly: with localStorage JWTs, a single reflected XSS stole sessions from three test accounts in under a minute. With httpOnly cookies, the same payload could still act as the user but could not exfiltrate a reusable bearer token to an attacker laptop. That trade is worth the CSRF work.</p>
 
           <h2>Issuing tokens</h2>
-          <p>On login I verify password with bcrypt at cost 12, then mint an access JWT signed with HS256 or better RS256 or EdDSA in larger systems. Claims stay minimal: sub, role, iat, exp. No PII blobs. Refresh token is a random 32-plus byte string; we store sha256 of the token in Postgres with user_id, expires_at, replaced_by, and revoked_at.</p>
+          <p>On login I verify password with bcrypt at cost 12, then mint an access JWT signed with HS256 or better RS256 or EdDSA in larger systems. Claims stay minimal: sub, role, iat, exp. No PII blobs. Refresh token is a random 32-plus byte string; we store sha256 of the token in Postgres with user_id, expires_at, replaced_by, replaced_at, and revoked_at.</p>
           <p>Clock skew between API instances bit us once: tokens looked expired 30 seconds early. We allow a 30-second clockTolerance on verify, and we NTP-sync the fleet. Also rotate JWT_ACCESS_SECRET only with a dual-key verify window so deploys do not log everyone out at once.</p>
           <pre><code>import jwt from &#x27;jsonwebtoken&#x27;;
 import crypto from &#x27;crypto&#x27;;
@@ -149,7 +150,9 @@ export function requireAuth(req, res, next) {
           <p>POST /auth/refresh reads the refresh cookie, hashes it, looks up a non-revoked row, issues a new access plus refresh pair, marks the old refresh as replaced, and sets cookies again. If a previously replaced refresh is presented again, I revoke the whole family — classic reuse detection for token theft.</p>
           <p>Without rotation, a leaked refresh token works until expiry. With rotation and reuse detection, we cut session abuse windows from days to minutes in one incident response drill.</p>
           <p>Race condition note: two parallel tabs can refresh at the same millisecond. One wins; the other looks like reuse. We solve this with a short grace window of about 10 seconds where the previous refresh still works if replaced_by was set recently by the same family, or by serializing refresh with a per-user lock.</p>
-          <pre><code>app.post(&#x27;/auth/refresh&#x27;, async (req, res) =&gt; {
+          <pre><code>const REUSE_GRACE_MS = 10_000; // replaced_at is set by rotate()
+
+app.post(&#x27;/auth/refresh&#x27;, async (req, res) =&gt; {
   const raw = req.cookies.refresh_token;
   if (!raw) return res.status(401).json({ error: &#x27;no_refresh&#x27; });
 
@@ -157,12 +160,25 @@ export function requireAuth(req, res, next) {
   if (!row || row.revoked_at || row.expires_at &lt; new Date()) {
     return res.status(401).json({ error: &#x27;invalid_refresh&#x27; });
   }
+  const user = await db.users.findById(row.user_id);
+
   if (row.replaced_by) {
+    // Grace window: a parallel tab may have rotated this token moments ago.
+    // Its response already set the new refresh cookie, so only reissue access.
+    if (row.replaced_at &amp;&amp; Date.now() - row.replaced_at.getTime() &lt; REUSE_GRACE_MS) {
+      res.cookie(&#x27;access_token&#x27;, signAccessToken(user), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === &#x27;production&#x27;,
+        sameSite: &#x27;lax&#x27;,
+        path: &#x27;/&#x27;,
+        maxAge: 10 * 60 * 1000,
+      });
+      return res.json({ ok: true });
+    }
     await db.refreshTokens.revokeFamily(row.family_id);
     return res.status(401).json({ error: &#x27;reuse_detected&#x27; });
   }
 
-  const user = await db.users.findById(row.user_id);
   const access = signAccessToken(user);
   const nextRefresh = createRefreshToken();
   await db.refreshTokens.rotate(row.id, hashToken(nextRefresh), REFRESH_DAYS);
@@ -196,7 +212,7 @@ async function apiFetch(input, init) {
 
           <h2>CSRF when cookies are involved</h2>
           <p>Cookie auth reintroduces CSRF for state-changing requests. I use SameSite=Lax as a good default for most apps plus a double-submit CSRF token for mutating routes, or SameSite=Strict for sensitive admin tools that can tolerate harsher UX.</p>
-          <p>SPA on app.example.com and API on api.example.com needs careful cookie Domain and CORS credentials. Same-site under a parent domain is simpler when you can afford it.</p>
+          <p>SPA on app.example.com and API on api.example.com needs careful cookie Domain and CORS credentials. Those two hosts are already same-site (same registrable domain) but cross-origin; serving the API from the same origin, for example app.example.com/api behind a reverse proxy, is simpler when you can afford it.</p>
 
           <h2>Cookie attributes I verify in staging</h2>
           <p>Before calling a release done I open Application Cookies on staging and confirm: httpOnly checked, Secure on HTTPS, SameSite as designed, path scoped for refresh, and expiry matching TTL. I have shipped a missing Secure flag that worked on localhost HTTP and silently dropped cookies in production HTTPS redirects.</p>
@@ -213,16 +229,6 @@ async function apiFetch(input, init) {
             <li>Reuse detection on refresh</li>
             <li>Logout revokes server-side state, not only cookies</li>
             <li>Single-flight client refresh to avoid false reuse alarms</li>
-          </ul>
-
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Prefer httpOnly cookies over localStorage for browser session tokens.</li>
-            <li>Keep access JWTs short-lived; persist opaque refresh tokens hashed in the DB.</li>
-            <li>Rotate refresh tokens and revoke the family on reuse.</li>
-            <li>Cookie auth needs a CSRF strategy with SameSite plus tokens for mutations.</li>
-            <li>Logout and sign out everywhere must revoke server-side refresh rows.</li>
-            <li>Serialize client silent-refresh so parallel 401s do not look like theft.</li>
           </ul>
 
           <div class="info-card" style="margin-top:2rem;">

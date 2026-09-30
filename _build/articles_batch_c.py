@@ -5,6 +5,7 @@ ARTICLES = [
         'description': 'How I ship token-bucket rate limits with Redis, pick keys and limits, and avoid the mistakes that take APIs down under burst traffic.',
         'category': 'Backend',
         'date': '2026-08-02',
+        'updated': '2026-09-29',
         'read_min': 8,
         'keywords': 'API rate limiting, token bucket, Redis rate limit, Express middleware, sliding window, 429 Too Many Requests',
         'excerpt': 'Rate limiting is not a nice-to-have once bots or a buggy client find your public endpoints. Here is the token-bucket design I use with Redis, including the failure modes I hit in production.',
@@ -34,10 +35,10 @@ ARTICLES = [
             {
                 'h2': 'Redis-backed token bucket in Node',
                 'paragraphs': [
-                    'In-memory maps work on a single Node process and fall apart behind a load balancer. Redis is the shared counter I trust. The pattern below uses a small Lua script so refill and consume are atomic. Without atomicity you under-count under concurrency and clients sneak past the limit.',
+                    'In-memory maps work on a single Node process and fall apart behind a load balancer. Redis is the shared counter I trust. The pattern below uses a small Lua script so refill and consume are atomic. Without atomicity you under-count under concurrency and clients sneak past the limit. The script also reads the clock with Redis TIME instead of each app server\'s Date.now(), so clock skew between instances cannot over- or under-refill a bucket.',
                     'I key by authenticated user id when present, otherwise by IP plus route group. Never key only by IP for logged-in APIs—NAT and mobile carriers share addresses and you will punish the wrong people.',
                 ],
-                'code': "const REDIS_SCRIPT = `\nlocal key = KEYS[1]\nlocal capacity = tonumber(ARGV[1])\nlocal refill_per_ms = tonumber(ARGV[2])\nlocal now = tonumber(ARGV[3])\nlocal cost = tonumber(ARGV[4])\n\nlocal data = redis.call('HMGET', key, 'tokens', 'ts')\nlocal tokens = tonumber(data[1])\nlocal ts = tonumber(data[2])\n\nif tokens == nil then\n  tokens = capacity\n  ts = now\nend\n\nlocal elapsed = math.max(0, now - ts)\ntokens = math.min(capacity, tokens + elapsed * refill_per_ms)\n\nif tokens < cost then\n  redis.call('HMSET', key, 'tokens', tokens, 'ts', now)\n  redis.call('PEXPIRE', key, math.ceil(capacity / refill_per_ms))\n  return {0, tokens}\nend\n\ntokens = tokens - cost\nredis.call('HMSET', key, 'tokens', tokens, 'ts', now)\nredis.call('PEXPIRE', key, math.ceil(capacity / refill_per_ms))\nreturn {1, tokens}\n`;\n\nasync function takeToken(redis, key, { capacity, refillPerSec, cost = 1 }) {\n  const now = Date.now();\n  const refillPerMs = refillPerSec / 1000;\n  const [allowed, remaining] = await redis.eval(\n    REDIS_SCRIPT, 1, key, capacity, refillPerMs, now, cost\n  );\n  return { allowed: allowed === 1, remaining: Number(remaining) };\n}",
+                'code': "const REDIS_SCRIPT = `\nlocal key = KEYS[1]\nlocal capacity = tonumber(ARGV[1])\nlocal refill_per_ms = tonumber(ARGV[2])\nlocal cost = tonumber(ARGV[3])\n\n-- Use the Redis server clock so every app instance shares one time source\nlocal t = redis.call('TIME')\nlocal now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)\n\nlocal data = redis.call('HMGET', key, 'tokens', 'ts')\nlocal tokens = tonumber(data[1])\nlocal ts = tonumber(data[2])\n\nif tokens == nil then\n  tokens = capacity\n  ts = now\nend\n\nlocal elapsed = math.max(0, now - ts)\ntokens = math.min(capacity, tokens + elapsed * refill_per_ms)\n\nif tokens < cost then\n  redis.call('HSET', key, 'tokens', tokens, 'ts', now)\n  redis.call('PEXPIRE', key, math.ceil(capacity / refill_per_ms))\n  return {0, tokens}\nend\n\ntokens = tokens - cost\nredis.call('HSET', key, 'tokens', tokens, 'ts', now)\nredis.call('PEXPIRE', key, math.ceil(capacity / refill_per_ms))\nreturn {1, tokens}\n`;\n\nasync function takeToken(redis, key, { capacity, refillPerSec, cost = 1 }) {\n  const refillPerMs = refillPerSec / 1000;\n  const [allowed, remaining] = await redis.eval(\n    REDIS_SCRIPT, 1, key, capacity, refillPerMs, cost\n  );\n  return { allowed: allowed === 1, remaining: Number(remaining) };\n}",
                 'code_lang': 'javascript',
             },
             {
@@ -46,8 +47,9 @@ ARTICLES = [
                     'I keep limits per route class, not one global number. Auth login stays tight. Read-heavy list endpoints get more headroom. Expensive report generation costs multiple tokens so one call counts like five cheap GETs.',
                     'Always return 429 with Retry-After when you can estimate it. Clients that respect the header stop hammering. Also emit RateLimit-Remaining style headers so partner integrations can back off before they fail.',
                     'I unit-test middleware with a fake Redis that records eval calls. That catches key shape bugs before load tests.',
+                    "req.ip is only the client address if Express knows about the proxies in front of it. Behind a load balancer or CDN, set app.set('trust proxy', n) to the number of proxy hops (or the proxies' addresses); without it, req.ip is the proxy and every anonymous client shares one bucket. Avoid 'trust proxy' true unless the last proxy overwrites X-Forwarded-For, or clients can choose their own key.",
                 ],
-                'code': "function rateLimit({ name, capacity, refillPerSec, cost = 1 }) {\n  return async (req, res, next) => {\n    const subject = req.user?.id || req.ip;\n    const key = `rl:${name}:${subject}`;\n    try {\n      const result = await takeToken(redis, key, { capacity, refillPerSec, cost });\n      res.setHeader('X-RateLimit-Limit', String(capacity));\n      res.setHeader('X-RateLimit-Remaining', String(Math.floor(result.remaining)));\n      if (!result.allowed) {\n        res.setHeader('Retry-After', '1');\n        return res.status(429).json({ error: 'rate_limit_exceeded' });\n      }\n      return next();\n    } catch (err) {\n      // Fail open or closed? See next section.\n      console.error('rate limit redis error', err);\n      return next();\n    }\n  };\n}\n\napp.post('/auth/login', rateLimit({ name: 'login', capacity: 10, refillPerSec: 0.2 }), loginHandler);\napp.get('/api/items', rateLimit({ name: 'items', capacity: 120, refillPerSec: 2 }), listItems);",
+                'code': "function rateLimit({ name, capacity, refillPerSec, cost = 1 }) {\n  return async (req, res, next) => {\n    const subject = req.user?.id || req.ip;\n    const key = `rl:${name}:${subject}`;\n    try {\n      const result = await takeToken(redis, key, { capacity, refillPerSec, cost });\n      res.setHeader('X-RateLimit-Limit', String(capacity));\n      res.setHeader('X-RateLimit-Remaining', String(Math.floor(result.remaining)));\n      if (!result.allowed) {\n        // Seconds until enough tokens have refilled to cover this request's cost\n        const retryAfter = Math.max(1, Math.ceil((cost - result.remaining) / refillPerSec));\n        res.setHeader('Retry-After', String(retryAfter));\n        return res.status(429).json({ error: 'rate_limit_exceeded' });\n      }\n      return next();\n    } catch (err) {\n      // Fail open or closed? See next section.\n      console.error('rate limit redis error', err);\n      return next();\n    }\n  };\n}\n\n// Behind a load balancer/CDN: trust exactly the proxy hops in front of the app,\n// otherwise req.ip is the proxy's address and all anonymous clients share one bucket.\napp.set('trust proxy', 1);\n\napp.post('/auth/login', rateLimit({ name: 'login', capacity: 10, refillPerSec: 0.2 }), loginHandler);\napp.get('/api/items', rateLimit({ name: 'items', capacity: 120, refillPerSec: 2 }), listItems);",
                 'code_lang': 'javascript',
             },
             {
@@ -116,8 +118,9 @@ ARTICLES = [
         'description': 'Practical rules for storing, loading, and rotating secrets in Node.js without leaking them through logs, git, or Docker images.',
         'category': 'Backend',
         'date': '2026-08-05',
+        'updated': '2026-09-29',
         'read_min': 8,
-        'keywords': 'Node.js environment variables, dotenv security, secrets management, process.env, .env.example, credential rotation',
+        'keywords': 'Node.js environment variables, dotenv security, secrets management, process.env, .env.example, credential rotation, Kubernetes Secrets',
         'excerpt': 'Most Node secret leaks I investigate are not exotic exploits. They are .env files in git, DEBUG logs printing process.env, and Docker layers that baked credentials into the image.',
         'sections': [
             {
@@ -165,9 +168,20 @@ ARTICLES = [
                     'ENV lines in Dockerfiles with real secrets bake values into image layers forever. Use runtime -e flags, orchestration secrets, or build args only for non-secrets. I have pulled “old” images from a registry and found keys from a previous customer still in the history.',
                     'In CI, map secrets from the vault or GitHub Actions secrets into env for the job. Do not echo them in scripts. Mask them in the CI UI. Be careful with set -x in bash—it prints expanded variables.',
                     'Child processes inherit the full environment. If you spawn a CLI tool you do not trust, scrub the env you pass it.',
-                    'Build args in Docker are visible in image history. Never pass secrets as build-arg “just for compile time” unless you use multi-stage builds that truly discard them—and even then prefer runtime injection.',
+                    'Build args in Docker are visible in image history. Never pass secrets as build-arg “just for compile time”: a build arg used in the final stage of a multi-stage build still lands in that image’s history. For secrets a build step really needs (a private registry token for npm ci, say), use a BuildKit secret mount (RUN --mount=type=secret), which exposes the value to that one RUN step without writing it to a layer. For everything the app needs at run time, prefer runtime injection.',
                 ],
-                'code': "# Bad: secret baked into image\n# ENV STRIPE_SECRET_KEY=sk_live_...\n\n# Better: inject at runtime\n# docker run -e STRIPE_SECRET_KEY --env-file /run/secrets/app.env myapp\n\n# In Node when spawning untrusted tools:\nimport { spawn } from 'node:child_process';\nspawn('some-tool', [], {\n  env: { PATH: process.env.PATH, HOME: process.env.HOME },\n});",
+                'code': "// Bad: secret baked into image\n// ENV STRIPE_SECRET_KEY=sk_live_...\n\n// Better: inject at runtime\n// docker run -e STRIPE_SECRET_KEY --env-file /run/secrets/app.env myapp\n\n// Build-time secret without baking it into a layer (BuildKit):\n// Dockerfile:  RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm ci\n// Build:       docker build --secret id=npmrc,src=$HOME/.npmrc .\n\n// In Node when spawning untrusted tools:\nimport { spawn } from 'node:child_process';\nspawn('some-tool', [], {\n  env: { PATH: process.env.PATH, HOME: process.env.HOME },\n});",
+                'code_lang': 'javascript',
+            },
+            {
+                'h2': 'Kubernetes Secrets for Node apps',
+                'paragraphs': [
+                    'A Kubernetes Secret is not encrypted just because it is a Secret. The base64 in its YAML is an encoding for the API, and base64 -d reverses it. By default the API server stores Secret data in etcd unencrypted, so anyone who can read the Secret object, or etcd and its backups, can read the credential. A Secret manifest committed to git is a plaintext secret in git.',
+                    'How the pod consumes a Secret decides what happens on rotation. Environment variables set from a Secret (env with secretKeyRef, or envFrom) are fixed when the container starts and never change in a running container, so a new value needs a pod restart, for example kubectl rollout restart deployment/api. Files from a Secret volume are updated by the kubelet after the Secret changes, eventually rather than instantly, but a Secret mounted with subPath never receives updates. A Node app that reads the file once at boot still needs a restart or a re-read to pick up a rotated value.',
+                    'Protect the object itself. Enable encryption at rest with the kube-apiserver flag --encryption-provider-config pointing at an EncryptionConfiguration, preferably with a KMS provider; managed platforms expose their own setting for this, so check it rather than assume. Restrict get, list and watch on secrets with RBAC to the workloads and people that need them: list and watch return Secret contents too, and anyone who can create a pod in a namespace can mount that namespace’s Secrets.',
+                    'For production, keep the source of truth in an external manager such as Vault, AWS Secrets Manager, GCP Secret Manager or Azure Key Vault, and bring values into the cluster with the External Secrets Operator or the Secrets Store CSI Driver. Rotation and audit then happen in one place, and git only holds references to secret names, never values.',
+                ],
+                'code': "import { readFileSync } from 'node:fs';\n\n// Secret volume mounted at /var/run/secrets/db (no subPath, so updates arrive)\nconst PASSWORD_FILE = process.env.DB_PASSWORD_FILE ?? '/var/run/secrets/db/password';\n\n// Read at connect time, not once at boot, so a rotated password is picked up\nexport function dbPassword() {\n  return readFileSync(PASSWORD_FILE, 'utf8').trim();\n}",
                 'code_lang': 'javascript',
             },
             {
@@ -217,9 +231,10 @@ ARTICLES = [
                 'h2': 'Example: stripping secrets from error reports',
                 'paragraphs': [
                     'Error trackers love to serialize the world. I keep a denylist of env key substrings—SECRET, TOKEN, PASSWORD, KEY, PRIVATE—and scrub matching values before events leave the process. Framework defaults are not enough; custom context objects still leak.',
+                    'The scrubber below matches key names, so KEY also catches SIGNING_KEY and accessKeyId. It does not inspect free-text values: a token pasted into an error message or log line needs a separate value check, such as a regex for your providers’ known key prefixes.',
                     'I also scrub Authorization headers and cookie values in HTTP error breadcrumbs. A single 500 on /checkout should not upload a session token to a SaaS you forgot was enabled in staging.',
                 ],
-                'code': "const SECRETISH = /(secret|token|password|passwd|api[_-]?key|private)/i;\n\nfunction scrub(value) {\n  if (value == null) return value;\n  if (Array.isArray(value)) return value.map(scrub);\n  if (typeof value === 'object') {\n    const out = {};\n    for (const [k, v] of Object.entries(value)) {\n      out[k] = SECRETISH.test(k) ? '[redacted]' : scrub(v);\n    }\n    return out;\n  }\n  return value;\n}\n\n// Sentry-style beforeSend\nfunction beforeSend(event) {\n  event.extra = scrub(event.extra);\n  event.contexts = scrub(event.contexts);\n  return event;\n}",
+                'code': "const SECRETISH = /(secret|token|password|passwd|key|private|authorization|cookie)/i;\n\nfunction scrub(value) {\n  if (value == null) return value;\n  if (Array.isArray(value)) return value.map(scrub);\n  if (typeof value === 'object') {\n    const out = {};\n    for (const [k, v] of Object.entries(value)) {\n      out[k] = SECRETISH.test(k) ? '[redacted]' : scrub(v);\n    }\n    return out;\n  }\n  return value;\n}\n\n// Sentry-style beforeSend\nfunction beforeSend(event) {\n  event.extra = scrub(event.extra);\n  event.contexts = scrub(event.contexts);\n  event.request = scrub(event.request); // headers: Authorization, Cookie\n  event.breadcrumbs = scrub(event.breadcrumbs);\n  return event;\n}",
                 'code_lang': 'javascript',
             },
             {
@@ -246,6 +261,7 @@ ARTICLES = [
         'description': 'A practical walkthrough of MongoDB aggregation stages, indexing, and the patterns that replaced slow application-side joins in my Node services.',
         'category': 'Databases',
         'date': '2026-08-08',
+        'updated': '2026-09-29',
         'read_min': 9,
         'keywords': 'MongoDB aggregation pipeline, $match $group $lookup, aggregation indexes, MongoDB performance, Node.js MongoDB',
         'excerpt': 'Aggregation pipelines stopped being “advanced Mongo” for me once report endpoints started timing out. This is the shape I use for filters, joins, and rollups without pulling half the collection into Node.',
@@ -266,7 +282,7 @@ ARTICLES = [
                 ],
                 'bullets': [
                     '$match early — use indexed fields',
-                    '$project early — drop bulky fields before $group',
+                    '$project for final output — the optimizer already drops fields later stages do not use',
                     '$sort after reducing cardinality when you can',
                     '$lookup only for fields you cannot afford to denormalize',
                     'Prefer $facet for multi-metric dashboards in one round trip',
@@ -315,7 +331,7 @@ ARTICLES = [
             {
                 'h2': 'Facets for dashboard endpoints',
                 'paragraphs': [
-                    'Dashboards often need counts, totals, and a small recent list. Three round trips mean three chances to disagree under concurrent writes. $facet runs parallel subpipelines on the same filtered input.',
+                    'Dashboards often need counts, totals, and a small recent list. Three round trips mean three chances to disagree under concurrent writes. $facet runs several independent sub-pipelines over the same filtered input within a single stage. The branches cannot use indexes themselves, and their combined output is one document, so it must stay under the 16MB BSON limit.',
                     'I still $match before $facet so each branch does not rescan the collection. Inside each branch I keep stages minimal. Facets that each $lookup the world will time out together and take the request with them.',
                 ],
                 'code': "const dashboard = await db.collection('orders').aggregate([\n  { $match: { merchantId: oid, createdAt: { $gte: start } } },\n  {\n    $facet: {\n      totals: [\n        { $group: { _id: null, revenue: { $sum: '$totalCents' }, n: { $sum: 1 } } },\n      ],\n      byStatus: [\n        { $group: { _id: '$status', n: { $sum: 1 } } },\n      ],\n      recent: [\n        { $sort: { createdAt: -1 } },\n        { $limit: 10 },\n        { $project: { totalCents: 1, status: 1, createdAt: 1 } },\n      ],\n    },\n  },\n]).next();",
@@ -331,7 +347,7 @@ ARTICLES = [
             {
                 'h2': 'Cursor batches and Node memory',
                 'paragraphs': [
-                    'toArray() on a huge aggregation result recreates the original problem—Node holds everything. For exports I stream the cursor and write CSV chunks. Set batchSize thoughtfully; default batches can still be large.',
+                    'toArray() on a huge aggregation result recreates the original problem—Node holds everything. For exports I stream the cursor and write CSV chunks. Set batchSize thoughtfully; default batches can still be large. Since MongoDB 6.0 the server allows disk use by default (allowDiskUseByDefault is true), so the explicit allowDiskUse: true below documents intent and overrides a cluster that turned the default off. Atlas Free and Flex clusters ignore allowDiskUse and never spill to disk.',
                     'For HTTP APIs I paginate with $skip/$limit only on small offsets, or better, range on _id or createdAt. Deep $skip on millions of documents is a known performance trap.',
                 ],
                 'code': "const cursor = db.collection('orders').aggregate(pipeline, { allowDiskUse: true, batchSize: 500 });\nfor await (const doc of cursor) {\n  await writeCsvRow(doc);\n}",
@@ -364,7 +380,7 @@ ARTICLES = [
         'takeaways': [
             'Use aggregation when you would otherwise pull large result sets into Node to reduce.',
             'Put selective $match first so indexes can cut the working set early.',
-            'Shape fields with $project before heavy $group or $lookup stages.',
+            'Use $project to shape final output; the optimizer already trims unused fields before $group.',
             'Verify new pipelines with explain() on realistic data volumes.',
             'Build stages from allowlists—never interpolate raw user input into pipelines.',
             'Cap date ranges and cardinality for interactive reports; use batch jobs for huge scans.',
@@ -514,6 +530,7 @@ ARTICLES = [
         'description': 'How I confirm a Node memory leak, take heap snapshots, compare retainers, and fix the usual suspects: caches, listeners, and closed-over requests.',
         'category': 'Backend',
         'date': '2026-08-16',
+        'updated': '2026-09-29',
         'read_min': 9,
         'keywords': 'Node.js memory leak, heap snapshot, Chrome DevTools, process.memoryUsage, EventEmitter leak, clinic heapprofiler',
         'excerpt': 'When a Node service climbs from 200MB to 2GB over a day, guessing wastes time. Here is the heap-snapshot workflow I use to find what is retaining memory.',
@@ -539,7 +556,7 @@ ARTICLES = [
                 'h2': 'Taking heap snapshots',
                 'paragraphs': [
                     'For local debugging I start Node with --inspect and use Chrome DevTools Memory tab. Take a snapshot at idle baseline, run the load script, force a minor wait, take another snapshot, then compare.',
-                    'In production-like containers I use heapdump or the inspector protocol behind an authenticated admin endpoint that only ops can hit. Never expose unauthenticated snapshot endpoints.',
+                    'In production-like containers I use Node’s built-in v8.writeHeapSnapshot() (available since Node 11.13; the old heapdump npm module is unmaintained) or the inspector protocol behind an authenticated admin endpoint that only ops can hit. Never expose unauthenticated snapshot endpoints. Without any endpoint, start Node with --heapsnapshot-signal=SIGUSR2 and send that signal to write a snapshot, or use --heapsnapshot-near-heap-limit=1 to capture one automatically as the heap approaches its limit.',
                 ],
                 'code': "# Local\nnode --inspect=0.0.0.0:9229 server.js\n\n# Or write a snapshot on demand (protect this route)\nimport v8 from 'node:v8';\nimport fs from 'node:fs';\n\napp.post('/admin/heapdump', requireAdmin, (req, res) => {\n  const file = `/tmp/heap-${Date.now()}.heapsnapshot`;\n  const snapshotStream = v8.writeHeapSnapshot(file);\n  res.json({ file: snapshotStream });\n});",
                 'code_lang': 'javascript',
@@ -644,8 +661,9 @@ ARTICLES = [
         'description': 'A practitioner comparison of Vite and Webpack for real apps—dev server speed, legacy constraints, microfrontends, and migration costs.',
         'category': 'Developer Tools',
         'date': '2026-08-19',
+        'updated': '2026-09-29',
         'read_min': 8,
-        'keywords': 'Vite vs Webpack, Vite 2026, Webpack 5, frontend bundler, esbuild Rollup, module federation',
+        'keywords': 'Vite vs Webpack, Vite 2026, Webpack 5, frontend bundler, Vite 8 Rolldown, Oxc, module federation',
         'excerpt': 'I still maintain Webpack apps and start most greenfield UI in Vite. Here is how I choose in 2026 without rewriting working build pipelines for sport.',
         'sections': [
             {
@@ -659,9 +677,9 @@ ARTICLES = [
             {
                 'h2': 'Where Vite wins for me',
                 'paragraphs': [
-                    'Greenfield React, Vue, and Svelte apps start in Vite unless a hard requirement says otherwise. Native ESM in dev plus esbuild transforms make cold starts feel instant compared to older Webpack setups we still have.',
+                    'Greenfield React, Vue, and Svelte apps start in Vite unless a hard requirement says otherwise. Native ESM in dev plus fast Oxc transforms (esbuild before Vite 8) make cold starts feel instant compared to older Webpack setups we still have.',
                     'Config stays smaller for common cases. Official templates are good. SSR and library modes are first-class enough for most product work I do.',
-                    'Production builds use Rollup under the hood. Tree-shaking is strong. For typical SPAs targeting modern browsers, I have not missed Webpack.',
+                    'Since Vite 8 (March 2026), production builds and dependency pre-bundling use Rolldown, a Rust bundler with a Rollup-compatible plugin API, instead of Rollup and esbuild. Tree-shaking is strong. For typical SPAs targeting modern browsers, I have not missed Webpack.',
                 ],
                 'bullets': [
                     'New SPAs and component libraries',
@@ -692,14 +710,14 @@ ARTICLES = [
                     'I do not big-bang rewrite webpack.config.js on Friday. I move one package in a monorepo first—usually the design system or a leaf app—and keep Webpack for the host until federation or shared deps are sorted.',
                     'Watch for differences in env handling (import.meta.env vs DefinePlugin), asset URL behavior, and how CSS modules hash class names. Visual diffs caught a missing global stylesheet import we had accidentally relied on Webpack’s context for.',
                 ],
-                'code': "// vite.config.js — typical SPA\nimport { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: { port: 5173, proxy: { '/api': 'http://localhost:3000' } },\n  build: {\n    sourcemap: true,\n    rollupOptions: {\n      output: {\n        manualChunks: {\n          vendor: ['react', 'react-dom'],\n        },\n      },\n    },\n  },\n});",
+                'code': "// vite.config.js — typical SPA\nimport { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: { port: 5173, proxy: { '/api': 'http://localhost:3000' } },\n  build: {\n    sourcemap: true,\n    // Vite 8: rollupOptions is now rolldownOptions, and the object form of\n    // manualChunks is gone; use Rolldown's codeSplitting groups instead.\n    rolldownOptions: {\n      output: {\n        codeSplitting: {\n          groups: [\n            { name: 'vendor', test: /node_modules[\\\\/]react(-dom)?[\\\\/]/ },\n          ],\n        },\n      },\n    },\n  },\n});",
                 'code_lang': 'javascript',
             },
             {
                 'h2': 'Decision heuristic I use in 2026',
                 'paragraphs': [
                     'New app, modern browsers, no Federation mandate: Vite. Existing Webpack app with no pain: leave it, maybe upgrade Webpack and cache settings. Painful Webpack only in local dev: evaluate Vite for that package. Hard Federation or unique loaders: stay on Webpack until there is a funded migration.',
-                    'Also check your framework’s recommendation. Next.js and Nuxt have their own compilers; forcing raw Vite or Webpack underneath fighting the framework is usually the wrong fight.',
+                    'Also check your framework’s recommendation. Next.js ships its own bundler (Turbopack) and Nuxt builds on Vite by default; forcing a different bundler underneath the framework is usually the wrong fight.',
                 ],
                 'bullets': [
                     'Optimize for daily edit-refresh loop first',
@@ -712,7 +730,7 @@ ARTICLES = [
             {
                 'h2': 'Plugin ecosystems and the long tail',
                 'paragraphs': [
-                    'Vite’s plugin API is Rollup-compatible for build and has a separate story for dev middleware. Most popular tools have Vite plugins in 2026. The long tail still bites: an internal Markdown transform written against Webpack’s loader API may need a rewrite.',
+                    'Vite’s plugin API is Rollup-compatible (Rolldown keeps that API since Vite 8) and has a separate story for dev middleware. Most popular tools have Vite plugins in 2026. The long tail still bites: an internal Markdown transform written against Webpack’s loader API may need a rewrite.',
                     'Estimate that rewrite in hours before promising “we’ll just switch.” I once quoted two days and spent two weeks on a SVG pipeline that depended on Webpack’s resourceQuery quirks.',
                     'Conversely, staying on Webpack forever because of one obscure plugin can cost more in engineer frustration than rewriting the plugin. Put a calendar reminder on “revisit migration” every two quarters if DX pain is high.',
                 ],
@@ -720,7 +738,7 @@ ARTICLES = [
             {
                 'h2': 'TypeScript, CSS, and monorepos',
                 'paragraphs': [
-                    'Both tools handle TypeScript. Vite leans on esbuild for transpile speed and leaves typechecking to vue-tsc/tsc in CI—which is the right split. Do not expect the bundler to be your typechecker.',
+                    'Both tools handle TypeScript. Vite leans on Oxc (esbuild before Vite 8) for transpile speed and leaves typechecking to vue-tsc/tsc in CI—which is the right split. Do not expect the bundler to be your typechecker.',
                     'In monorepos, Vite’s dependency prebundling needs careful optimizeDeps includes for linked workspace packages. Webpack’s module resolution pain is older and better documented in tribal knowledge—neither is free.',
                     'Pick one story for CSS: CSS modules, vanilla-extract, Tailwind. Fighting the bundler and the CSS approach at the same time makes migrations unreadable in review.',
                 ],
@@ -732,7 +750,7 @@ ARTICLES = [
                     'Webpack is still used in some design-system pipelines that emit many asset flavors. If your package build is already green and automated, migration is optional.',
                     'Externalize peer dependencies—react, react-dom—so you do not bundle a second copy into every consumer. Both tools support externals; forgetting them causes “Invalid hook call” tickets.',
                 ],
-                'code': "export default defineConfig({\n  build: {\n    lib: {\n      entry: 'src/index.ts',\n      name: 'UiKit',\n      formats: ['es'],\n      fileName: 'ui-kit',\n    },\n    rollupOptions: {\n      external: ['react', 'react-dom'],\n    },\n  },\n});",
+                'code': "export default defineConfig({\n  build: {\n    lib: {\n      entry: 'src/index.ts',\n      name: 'UiKit',\n      formats: ['es'],\n      fileName: 'ui-kit',\n    },\n    rolldownOptions: {\n      external: ['react', 'react-dom'],\n    },\n  },\n});",
                 'code_lang': 'javascript',
             },
             {
@@ -898,6 +916,7 @@ ARTICLES = [
         'description': 'A practical guide to shipping a static HTML/CSS/JS site to Netlify, GitHub Pages, and a VPS with Nginx—including caching, HTTPS, and the mistakes that break deploys.',
         'category': 'DevOps',
         'date': '2026-08-27',
+        'updated': '2026-09-29',
         'read_min': 8,
         'keywords': "deploy static site, Netlify deploy, GitHub Pages, Nginx static files, HTTPS Let's Encrypt, cache-control headers",
         'excerpt': 'BudhiWorks itself is a static site. Here is how I deploy the same kind of project to Netlify, GitHub Pages, or a plain Nginx box—without mystery 404s and stale caches.',
@@ -916,7 +935,7 @@ ARTICLES = [
                     'Connect the Git repo, set the publish directory (for this project that might be the repo root or a dist/ folder), and leave the build command empty if there is no build step. For a generator, set build and publish accordingly.',
                     'Add a netlify.toml so settings live in git. Force HTTPS. Use _redirects or the toml redirects table for clean URLs. Preview deploys on pull requests catch broken links before production.',
                 ],
-                'code': '# netlify.toml\n[build]\n  publish = "."\n  # command = "npm run build"  # if you have a build\n\n[[headers]]\n  for = "/*"\n  [headers.values]\n    X-Frame-Options = "DENY"\n    X-Content-Type-Options = "nosniff"\n\n[[headers]]\n  for = "/assets/*"\n  [headers.values]\n    Cache-Control = "public, max-age=31536000, immutable"\n\n[[headers]]\n  for = "/*.html"\n  [headers.values]\n    Cache-Control = "public, max-age=0, must-revalidate"',
+                'code': '# netlify.toml\n[build]\n  publish = "."\n  # command = "npm run build"  # if you have a build\n\n[[headers]]\n  for = "/*"\n  [headers.values]\n    X-Frame-Options = "DENY"\n    X-Content-Type-Options = "nosniff"\n\n[[headers]]\n  for = "/assets/*"\n  [headers.values]\n    # Only safe if files under /assets have content-hashed names\n    Cache-Control = "public, max-age=31536000, immutable"\n\n[[headers]]\n  for = "/*.html"\n  [headers.values]\n    Cache-Control = "public, max-age=0, must-revalidate"',
                 'code_lang': 'toml',
             },
             {
@@ -933,9 +952,20 @@ ARTICLES = [
                 'paragraphs': [
                     'For full control I rsync the site to /var/www/site and point Nginx at it. Certbot handles Let’s Encrypt certificates. This path costs more ops time and gives you exact cache and header behavior.',
                     'rsync with --delete prevents old articles from lingering after renames. I learned that when a deleted draft kept ranking in search because the file never left the server.',
+                    'The deploy itself runs from your machine or CI, not from the Nginx config: rsync -avz --delete ./site/ user@server:/var/www/site/',
                 ],
-                'code': 'server {\n  listen 443 ssl http2;\n  server_name example.com www.example.com;\n\n  root /var/www/site;\n  index index.html;\n\n  location / {\n    try_files $uri $uri/ =404;\n  }\n\n  location ~* \\.(css|js|jpg|jpeg|png|gif|ico|svg|webp|woff2)$ {\n    expires 30d;\n    add_header Cache-Control "public";\n  }\n\n  location ~* \\.html$ {\n    add_header Cache-Control "no-cache";\n  }\n}\n\n# Deploy\nrsync -avz --delete ./site/ user@server:/var/www/site/',
+                'code': '# Redirect all HTTP to HTTPS (certbot --nginx can add this for you)\nserver {\n  listen 80;\n  server_name example.com www.example.com;\n  return 301 https://$host$request_uri;\n}\n\nserver {\n  listen 443 ssl;\n  http2 on;  # nginx 1.25.1+; replaces the deprecated "listen ... http2"\n  server_name example.com www.example.com;\n\n  ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;\n  ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;\n\n  root /var/www/site;\n  index index.html;\n\n  location / {\n    try_files $uri $uri/ =404;\n  }\n\n  # Fingerprinted files (e.g. app.3f9a1c2b.css) never change: cache for a year\n  # Regexes containing { } must be quoted in nginx config\n  location ~* "\\.[0-9a-f]{8,}\\.(css|js|jpg|jpeg|png|gif|ico|svg|webp|woff2)$" {\n    add_header Cache-Control "public, max-age=31536000, immutable";\n  }\n\n  # Un-hashed assets and HTML: revalidate on each use (cheap 304s via ETag)\n  location ~* \\.(css|js|jpg|jpeg|png|gif|ico|svg|webp|woff2|html)$ {\n    add_header Cache-Control "no-cache";\n  }\n}',
                 'code_lang': 'nginx',
+            },
+            {
+                'h2': 'Automating the VPS deploy with GitHub Actions',
+                'paragraphs': [
+                    'Once a site has a build step, a workflow on main can build and rsync it so nobody deploys from a laptop. The example below checks out the repo, installs a current Node LTS with actions/setup-node (Node 20 reached end of life in April 2026, so use 22 or 24), runs npm ci against the committed lockfile, builds, and syncs dist/ to the Nginx root with --delete. Adjust dist/ to your publish directory, or drop the Node steps if the site has no build.',
+                    'The SSH step needs a known_hosts entry as well as the key; without one, rsync stops with “Host key verification failed”. Generate the entry once from a machine you trust (ssh-keyscan -t ed25519 your.server), compare its fingerprint with ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub on the server, and store it as the DEPLOY_KNOWN_HOSTS secret. Turning off StrictHostKeyChecking instead removes the protection against a spoofed host. Keep the three secrets in a GitHub environment named production so deploys can require a reviewer.',
+                    'The concurrency block allows one deploy at a time. By default a newer run waits and replaces any older pending run, so an older commit cannot deploy after a newer one. cancel-in-progress: true would also cancel a deploy that is already running, which can stop rsync halfway through. For GitHub Pages, use the Option B workflow instead; this one is for servers you control.',
+                ],
+                'code': '# .github/workflows/deploy.yml\nname: Build and deploy\non:\n  push:\n    branches: [main]\n\npermissions:\n  contents: read\n\n# One deploy at a time; a newer run replaces any older *pending* run\nconcurrency:\n  group: deploy-production\n  cancel-in-progress: false\n\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    environment: production\n    steps:\n      - uses: actions/checkout@v7\n      - uses: actions/setup-node@v7\n        with:\n          node-version: 24\n          cache: npm\n      - run: npm ci\n      - run: npm run build\n      - name: Configure SSH\n        env:\n          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}\n          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}\n        run: |\n          install -d -m 700 ~/.ssh\n          install -m 600 /dev/null ~/.ssh/id_ed25519\n          printf \'%s\\n\' "$SSH_KEY" > ~/.ssh/id_ed25519\n          printf \'%s\\n\' "$KNOWN_HOSTS" > ~/.ssh/known_hosts\n      - name: Rsync to server\n        env:\n          HOST: ${{ secrets.DEPLOY_HOST }}\n        run: rsync -az --delete dist/ "deploy@$HOST:/var/www/site/"',
+                'code_lang': 'yaml',
             },
             {
                 'h2': 'Caching and cache-busting',
@@ -979,7 +1009,7 @@ ARTICLES = [
                 'paragraphs': [
                     'Multi-page static HTML (like this blogging repo) needs try_files that serve real files and a clean 404. SPA mode that rewrites everything to index.html will hide missing articles as the homepage shell—bad for content sites.',
                     'If you do ship an SPA admin elsewhere, use a separate location block or host. Do not reuse the blog’s Nginx try_files for an app that needs history API fallbacks.',
-                    'Precompress assets with gzip or brotli at the CDN. Nginx can serve precompressed .br files when configured. It is free performance for text-heavy blogs.',
+                    'Precompress assets with gzip or brotli at the CDN. On Nginx, gzip_static on serves precompressed .gz files (the module ships in most distro and nginx.org packages); serving .br files needs the separate ngx_brotli module and its brotli_static directive. It is free performance for text-heavy blogs.',
                 ],
                 'bullets': [
                     'Content sites: real paths and real 404 pages',
@@ -992,10 +1022,11 @@ ARTICLES = [
                 'h2': 'Headers worth setting on day one',
                 'paragraphs': [
                     'Besides cache policy, I set X-Content-Type-Options nosniff, a conservative Referrer-Policy, and a Content-Security-Policy that fits the site. Static blogs can use strict CSPs more easily than complex SPAs.',
+                    "The CSP has to allow everything the page really loads, and ads load a lot. AdSense code pulls further scripts and iframes from several Google domains that change over time, so an allowlist such as script-src 'self' https://pagead2.googlesyndication.com under default-src 'self' blocks the ads. Google supports only a nonce-based strict CSP for AdSense, shown below. The nonce must be random on every response, so a purely static host has to inject it at the edge or in the web server; where that is not possible, leave script-src out rather than ship a policy that breaks ads. Test any policy with Content-Security-Policy-Report-Only first.",
                     'HSTS comes after you are sure HTTPS works on all subdomains you cover. Premature HSTS with includeSubDomains has locked teams out of internal HTTP tools on sibling hosts.',
                     'Security headers do not replace careful script hygiene. They reduce blast radius when a mistake happens.',
                 ],
-                'code': "Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; \\\n  style-src 'self' 'unsafe-inline'; script-src 'self' https://pagead2.googlesyndication.com; \\\n  frame-ancestors 'none';\nReferrer-Policy: strict-origin-when-cross-origin\nX-Content-Type-Options: nosniff",
+                'code': "# Strict CSP in the form Google supports for AdSense. {random} must be a fresh,\n# unguessable value per response; put the same value in nonce=\"...\" on the\n# adsbygoogle.js script tag and on the inline (adsbygoogle = ...).push() script.\nContent-Security-Policy: object-src 'none'; \\\n  script-src 'nonce-{random}' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' https: http:; \\\n  base-uri 'none'; frame-ancestors 'none'\nReferrer-Policy: strict-origin-when-cross-origin\nX-Content-Type-Options: nosniff",
                 'code_lang': 'text',
             },
             {

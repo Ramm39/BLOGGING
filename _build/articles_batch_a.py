@@ -5,6 +5,7 @@ ARTICLES = [
         'description': "A practitioner's playbook for diagnosing Access-Control-Allow-Origin failures, fixing OPTIONS preflight, cookie credentials, and Vite/Express proxy setups.",
         'category': 'Backend',
         'date': '2026-06-02',
+        'updated': '2026-09-29',
         'read_min': 11,
         'keywords': 'CORS errors, Access-Control-Allow-Origin, preflight OPTIONS, credentials cookies, Express CORS, Vite proxy',
         'excerpt': 'I still see CORS turn a 20-minute feature into a two-hour rabbit hole. Here is the checklist I use when the browser blocks a fetch that works fine in curl.',
@@ -24,7 +25,7 @@ ARTICLES = [
                     'In my apps, JSON APIs almost always preflight because we send Content-Type application/json and often Authorization. If OPTIONS is not handled, Chrome shows a CORS error even though the real route would have returned 200. I have fixed this three times by adding an OPTIONS handler or enabling CORS middleware that answers preflight.',
                     'Watch for frameworks that only register GET/POST and return 404 for OPTIONS. NestJS, Express routers with strict method lists, and API gateways that block unknown methods all produce the same symptom. In one staging env, our ALB returned 405 for OPTIONS while Node never saw the request — we enabled OPTIONS at the load balancer, not only in Express.',
                 ],
-                'code': "# Express: answer preflight explicitly if you are not using cors()\napp.options('/api/*', (req, res) => {\n  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');\n  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');\n  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');\n  res.setHeader('Access-Control-Max-Age', '86400');\n  res.sendStatus(204);\n});",
+                'code': "// Express: answer preflight explicitly if you are not using cors()\n// Express 5 requires a named wildcard (*splat); a bare /api/* throws at startup\napp.options('/api/*splat', (req, res) => {\n  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');\n  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');\n  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');\n  res.setHeader('Access-Control-Max-Age', '7200'); // Chromium caps at 7200s; Firefox at 86400s\n  res.sendStatus(204);\n});",
                 'code_lang': 'javascript',
             },
             {
@@ -34,7 +35,7 @@ ARTICLES = [
                     'I once shipped origin true in the cors package and forgot credentials true on the client. Cookies never arrived. Another time I set both sides correctly but left SameSite=Strict on a cross-site cookie — CORS looked fixed, session still empty. Check Set-Cookie attributes in the response headers, not only ACAO.',
                     'Numbers from a real incident: about 70 percent of login-then-logout reports on a SPA were cookie attribute mismatches, not bad JWT secrets. DevTools showed a SameSite warning. We switched to SameSite=None Secure for the cross-site API host and those tickets dropped overnight.',
                 ],
-                'code': "// Client\nfetch('https://api.example.com/me', {\n  method: 'GET',\n  credentials: 'include',\n  headers: { 'Content-Type': 'application/json' },\n});\n\n// Server (cors package)\nimport cors from 'cors';\napp.use(cors({\n  origin: ['http://localhost:5173', 'https://app.example.com'],\n  credentials: true,\n  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],\n  allowedHeaders: ['Content-Type', 'Authorization'],\n}));",
+                'code': "// Client\nfetch('https://api.example.com/me', {\n  method: 'GET',\n  credentials: 'include',\n  // No Content-Type on a bodiless GET: it would force a preflight for nothing\n});\n\n// Server (cors package)\nimport cors from 'cors';\napp.use(cors({\n  origin: ['http://localhost:5173', 'https://app.example.com'],\n  credentials: true,\n  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],\n  allowedHeaders: ['Content-Type', 'Authorization'],\n}));",
                 'code_lang': 'javascript',
             },
             {
@@ -53,7 +54,7 @@ ARTICLES = [
                     'Hardcoding http://localhost:5173 works until someone uses 5174, a preview deploy URL, or 127.0.0.1 instead of localhost. Browsers treat those as different origins. I keep an env list and reject missing Origin rather than reflecting whatever the client sends.',
                     'Reflecting arbitrary Origin values with credentials enabled lets any website read authenticated responses. Our allowlist lives in CORS_ORIGINS and we fail closed in production. In development we allow a shortlist of localhost ports so preview branches still work.',
                 ],
-                'code': "function corsOrigin(req, callback) {\n  const allowed = (process.env.CORS_ORIGINS || '')\n    .split(',')\n    .map((s) => s.trim())\n    .filter(Boolean);\n  const origin = req.header('Origin');\n  if (!origin) return callback(null, false);\n  if (allowed.includes(origin)) return callback(null, true);\n  return callback(new Error(`Origin ${origin} not allowed`), false);\n}\n\napp.use(cors({ origin: corsOrigin, credentials: true }));",
+                'code': "// cors calls this with the Origin header value (or undefined), not the request\nfunction corsOrigin(origin, callback) {\n  const allowed = (process.env.CORS_ORIGINS || '')\n    .split(',')\n    .map((s) => s.trim())\n    .filter(Boolean);\n  if (!origin) return callback(null, false);\n  if (allowed.includes(origin)) return callback(null, true);\n  return callback(new Error(`Origin ${origin} not allowed`), false);\n}\n\napp.use(cors({ origin: corsOrigin, credentials: true }));",
                 'code_lang': 'javascript',
             },
             {
@@ -74,8 +75,8 @@ ARTICLES = [
             {
                 'h2': 'Production pattern I settle on',
                 'paragraphs': [
-                    'Allowlist exact frontend origins from env. Reject unknown origins. Keep credentials only if you truly need cookie sessions; Bearer tokens in Authorization avoid cookie plus CORS complexity for many SPAs.',
-                    'For mobile WebViews and multiple subdomains, I sometimes put API and app under a shared parent domain and terminate TLS at a reverse proxy so browsers see same-site requests. That removed an entire class of CORS tickets for one client — about 40 percent of their API-is-down Slack threads were actually CORS misconfig.',
+                    'Allowlist exact frontend origins from env. Reject unknown origins. Keep credentials only if you truly need cookie sessions; Bearer tokens in Authorization avoid the cookie and credentials side of CORS for many SPAs, though the Authorization header still triggers a preflight and must be listed in Access-Control-Allow-Headers.',
+                    'For mobile WebViews and multiple subdomains, I sometimes put API and app under a shared parent domain and terminate TLS at a reverse proxy so browsers see same-origin requests. Same-site alone is not enough: sibling subdomains such as app.example.com and api.example.com are same-site but still cross-origin, so the proxy has to serve both from one host. That removed an entire class of CORS tickets for one client — about 40 percent of their API-is-down Slack threads were actually CORS misconfig.',
                     'I also document the matrix in the README: which env, which origin, cookie or bearer, proxy or direct. The next person debugging at 11pm should not rediscover these rules from stack traces alone.',
                 ],
             },
@@ -95,6 +96,7 @@ ARTICLES = [
         'description': 'Field-tested ways to improve Largest Contentful Paint, Interaction to Next Paint, and Cumulative Layout Shift with numbers from real production apps.',
         'category': 'Web Performance',
         'date': '2026-06-05',
+        'updated': '2026-09-29',
         'read_min': 12,
         'keywords': 'Core Web Vitals, LCP, INP, CLS, web performance, fetchpriority, font-display',
         'excerpt': 'I treat Core Web Vitals as a release gate, not a blog buzzword. This is the checklist we run before shipping marketing pages and authenticated dashboards.',
@@ -120,7 +122,7 @@ ARTICLES = [
             {
                 'h2': 'INP: keep the main thread free after clicks',
                 'paragraphs': [
-                    'INP replaced FID. It measures how long the page stays unresponsive after a user interaction across the visit. Our worst INP came from a filters panel that re-rendered a 2,000-row table synchronously on every checkbox toggle.',
+                    'INP replaced FID. It observes every click, tap, and keypress during the visit, measures each from input until the next frame is painted, and reports roughly the worst one (ignoring rare outliers on pages with many interactions). Our worst INP came from a filters panel that re-rendered a 2,000-row table synchronously on every checkbox toggle.',
                     'Fixes that moved p75 INP from about 380ms to about 140ms: debounce expensive handlers at 150ms, virtualize long lists, break work with scheduler.postTask or requestIdleCallback for non-urgent updates, and avoid layout thrashing in event handlers. I profile with the Performance panel Interactions track, not guesses.',
                     'Another pattern that hurt us: opening a modal that synchronously parsed a large JSON blob and built a chart. Moving parse and chart construction behind startTransition in React kept the click responsive; the chart filled in a frame later. Users preferred a fast open over a frozen button.',
                 ],
@@ -189,6 +191,7 @@ ARTICLES = [
         'description': 'How I implement short-lived access JWTs and rotating refresh tokens in Express, stored in httpOnly cookies, with concrete rotation and revocation notes.',
         'category': 'Backend',
         'date': '2026-06-08',
+        'updated': '2026-09-29',
         'read_min': 12,
         'keywords': 'JWT authentication, refresh token, httpOnly cookie, Node.js Express, access token, token rotation',
         'excerpt': 'I stopped putting JWTs in localStorage after one XSS demo emptied a staging account. Here is the access plus refresh cookie pattern we use in production Express apps.',
@@ -204,7 +207,7 @@ ARTICLES = [
             {
                 'h2': 'Issuing tokens',
                 'paragraphs': [
-                    'On login I verify password with bcrypt at cost 12, then mint an access JWT signed with HS256 or better RS256 or EdDSA in larger systems. Claims stay minimal: sub, role, iat, exp. No PII blobs. Refresh token is a random 32-plus byte string; we store sha256 of the token in Postgres with user_id, expires_at, replaced_by, and revoked_at.',
+                    'On login I verify password with bcrypt at cost 12, then mint an access JWT signed with HS256 or better RS256 or EdDSA in larger systems. Claims stay minimal: sub, role, iat, exp. No PII blobs. Refresh token is a random 32-plus byte string; we store sha256 of the token in Postgres with user_id, expires_at, replaced_by, replaced_at, and revoked_at.',
                     'Clock skew between API instances bit us once: tokens looked expired 30 seconds early. We allow a 30-second clockTolerance on verify, and we NTP-sync the fleet. Also rotate JWT_ACCESS_SECRET only with a dual-key verify window so deploys do not log everyone out at once.',
                 ],
                 'code': "import jwt from 'jsonwebtoken';\nimport crypto from 'crypto';\n\nconst ACCESS_TTL = '10m';\nconst REFRESH_DAYS = 14;\n\nexport function signAccessToken(user) {\n  return jwt.sign(\n    { sub: user.id, role: user.role },\n    process.env.JWT_ACCESS_SECRET,\n    { expiresIn: ACCESS_TTL }\n  );\n}\n\nexport function createRefreshToken() {\n  return crypto.randomBytes(48).toString('base64url');\n}\n\nexport function hashToken(token) {\n  return crypto.createHash('sha256').update(token).digest('hex');\n}\n\nexport function setAuthCookies(res, accessToken, refreshToken) {\n  const common = {\n    httpOnly: true,\n    secure: process.env.NODE_ENV === 'production',\n    sameSite: 'lax',\n    path: '/',\n  };\n  res.cookie('access_token', accessToken, { ...common, maxAge: 10 * 60 * 1000 });\n  res.cookie('refresh_token', refreshToken, {\n    ...common,\n    path: '/auth',\n    maxAge: REFRESH_DAYS * 24 * 60 * 60 * 1000,\n  });\n}",
@@ -226,7 +229,7 @@ ARTICLES = [
                     'Without rotation, a leaked refresh token works until expiry. With rotation and reuse detection, we cut session abuse windows from days to minutes in one incident response drill.',
                     'Race condition note: two parallel tabs can refresh at the same millisecond. One wins; the other looks like reuse. We solve this with a short grace window of about 10 seconds where the previous refresh still works if replaced_by was set recently by the same family, or by serializing refresh with a per-user lock.',
                 ],
-                'code': "app.post('/auth/refresh', async (req, res) => {\n  const raw = req.cookies.refresh_token;\n  if (!raw) return res.status(401).json({ error: 'no_refresh' });\n\n  const row = await db.refreshTokens.findByHash(hashToken(raw));\n  if (!row || row.revoked_at || row.expires_at < new Date()) {\n    return res.status(401).json({ error: 'invalid_refresh' });\n  }\n  if (row.replaced_by) {\n    await db.refreshTokens.revokeFamily(row.family_id);\n    return res.status(401).json({ error: 'reuse_detected' });\n  }\n\n  const user = await db.users.findById(row.user_id);\n  const access = signAccessToken(user);\n  const nextRefresh = createRefreshToken();\n  await db.refreshTokens.rotate(row.id, hashToken(nextRefresh), REFRESH_DAYS);\n  setAuthCookies(res, access, nextRefresh);\n  res.json({ ok: true });\n});",
+                'code': "const REUSE_GRACE_MS = 10_000; // replaced_at is set by rotate()\n\napp.post('/auth/refresh', async (req, res) => {\n  const raw = req.cookies.refresh_token;\n  if (!raw) return res.status(401).json({ error: 'no_refresh' });\n\n  const row = await db.refreshTokens.findByHash(hashToken(raw));\n  if (!row || row.revoked_at || row.expires_at < new Date()) {\n    return res.status(401).json({ error: 'invalid_refresh' });\n  }\n  const user = await db.users.findById(row.user_id);\n\n  if (row.replaced_by) {\n    // Grace window: a parallel tab may have rotated this token moments ago.\n    // Its response already set the new refresh cookie, so only reissue access.\n    if (row.replaced_at && Date.now() - row.replaced_at.getTime() < REUSE_GRACE_MS) {\n      res.cookie('access_token', signAccessToken(user), {\n        httpOnly: true,\n        secure: process.env.NODE_ENV === 'production',\n        sameSite: 'lax',\n        path: '/',\n        maxAge: 10 * 60 * 1000,\n      });\n      return res.json({ ok: true });\n    }\n    await db.refreshTokens.revokeFamily(row.family_id);\n    return res.status(401).json({ error: 'reuse_detected' });\n  }\n\n  const access = signAccessToken(user);\n  const nextRefresh = createRefreshToken();\n  await db.refreshTokens.rotate(row.id, hashToken(nextRefresh), REFRESH_DAYS);\n  setAuthCookies(res, access, nextRefresh);\n  res.json({ ok: true });\n});",
                 'code_lang': 'javascript',
             },
             {
@@ -241,7 +244,7 @@ ARTICLES = [
                 'h2': 'CSRF when cookies are involved',
                 'paragraphs': [
                     'Cookie auth reintroduces CSRF for state-changing requests. I use SameSite=Lax as a good default for most apps plus a double-submit CSRF token for mutating routes, or SameSite=Strict for sensitive admin tools that can tolerate harsher UX.',
-                    'SPA on app.example.com and API on api.example.com needs careful cookie Domain and CORS credentials. Same-site under a parent domain is simpler when you can afford it.',
+                    'SPA on app.example.com and API on api.example.com needs careful cookie Domain and CORS credentials. Those two hosts are already same-site (same registrable domain) but cross-origin; serving the API from the same origin, for example app.example.com/api behind a reverse proxy, is simpler when you can afford it.',
                 ],
             },
             {
@@ -283,6 +286,7 @@ ARTICLES = [
         'description': 'A practical Compose file for day-to-day Node development with Postgres and Redis, including volumes, healthchecks, and the mistakes that ate my weekends.',
         'category': 'DevOps',
         'date': '2026-06-11',
+        'updated': '2026-09-29',
         'read_min': 12,
         'keywords': 'Docker Compose, Node.js, Postgres, Redis, local development, healthcheck, volumes',
         'excerpt': 'I want one command that brings up API, Postgres, and Redis the same way on every laptop. This is the Compose setup we copy into new services.',
@@ -301,7 +305,7 @@ ARTICLES = [
                     'Pin image tags. postgres:latest bit us when a major jumped overnight. Named volumes keep data across restarts. Healthchecks stop the API from racing migrations before Postgres accepts connections — that race caused flaky CI for weeks.',
                     'I also set restart unless-stopped on db and redis for long-lived laptops, and I keep resource limits light so a runaway migration cannot freeze Docker Desktop. Memory 512M for Postgres is enough for local datasets under a few GB.',
                 ],
-                'code': 'services:\n  db:\n    image: postgres:16.3-alpine\n    environment:\n      POSTGRES_USER: app\n      POSTGRES_PASSWORD: app\n      POSTGRES_DB: app_dev\n    ports:\n      - "5432:5432"\n    volumes:\n      - pgdata:/var/lib/postgresql/data\n      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro\n    healthcheck:\n      test: ["CMD-SHELL", "pg_isready -U app -d app_dev"]\n      interval: 5s\n      timeout: 5s\n      retries: 10\n\n  redis:\n    image: redis:7.2-alpine\n    ports:\n      - "6379:6379"\n    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]\n    healthcheck:\n      test: ["CMD", "redis-cli", "ping"]\n      interval: 5s\n      timeout: 3s\n      retries: 10\n\n  api:\n    build:\n      context: .\n      dockerfile: Dockerfile.dev\n    env_file: .env.docker\n    environment:\n      DATABASE_URL: postgres://app:app@db:5432/app_dev\n      REDIS_URL: redis://redis:6379\n    ports:\n      - "4000:4000"\n    volumes:\n      - .:/app\n      - /app/node_modules\n    depends_on:\n      db:\n        condition: service_healthy\n      redis:\n        condition: service_healthy\n\nvolumes:\n  pgdata:',
+                'code': 'services:\n  db:\n    image: postgres:16-alpine\n    environment:\n      POSTGRES_USER: app\n      POSTGRES_PASSWORD: app\n      POSTGRES_DB: app_dev\n    ports:\n      - "5432:5432"\n    volumes:\n      - pgdata:/var/lib/postgresql/data\n      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro\n    healthcheck:\n      test: ["CMD-SHELL", "pg_isready -U app -d app_dev"]\n      interval: 5s\n      timeout: 5s\n      retries: 10\n    restart: unless-stopped\n    deploy:\n      resources:\n        limits:\n          memory: 512M\n\n  redis:\n    image: redis:7.4-alpine\n    restart: unless-stopped\n    ports:\n      - "6379:6379"\n    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]\n    healthcheck:\n      test: ["CMD", "redis-cli", "ping"]\n      interval: 5s\n      timeout: 3s\n      retries: 10\n\n  api:\n    build:\n      context: .\n      dockerfile: Dockerfile.dev\n    env_file: .env.docker\n    environment:\n      DATABASE_URL: postgres://app:app@db:5432/app_dev\n      REDIS_URL: redis://redis:6379\n    ports:\n      - "4000:4000"\n    volumes:\n      - .:/app\n      - /app/node_modules\n    depends_on:\n      db:\n        condition: service_healthy\n      redis:\n        condition: service_healthy\n\nvolumes:\n  pgdata:',
                 'code_lang': 'yaml',
             },
             {
@@ -344,7 +348,7 @@ ARTICLES = [
                     'For shared laptops, set COMPOSE_PROJECT_NAME so volume names do not collide with another repo also calling its service db.',
                 ],
                 'bullets': [
-                    'Pin major.minor image tags',
+                    'Pin image tags to a release line (postgres:16, redis:7.4), never latest',
                     'Healthcheck before depends_on',
                     'Use service DNS names inside the network',
                     'Anonymous volume for node_modules on bind mounts',
@@ -489,6 +493,7 @@ ARTICLES = [
         'description': 'Practical App Router patterns for cached fetch, revalidate, no-store dynamic data, and when I reach for Server Actions — based on shipping Next.js 14/15 apps.',
         'category': 'Frontend',
         'date': '2026-06-18',
+        'updated': '2026-09-29',
         'read_min': 12,
         'keywords': 'Next.js App Router, fetch cache, revalidate, no-store, Server Components, Server Actions',
         'excerpt': 'App Router caching surprised us in production: a live admin page served stale inventory for 60 seconds. Here is how I choose fetch options on purpose.',
@@ -516,7 +521,7 @@ ARTICLES = [
                     'When editors publish, waiting 60s is awkward. We tag fetches and call revalidateTag posts from a webhook Server Action or route handler after CMS publish. That cut where-is-my-post support pings to near zero.',
                     'Protect the webhook with a shared secret and rate limiting. An open revalidate endpoint is a cheap DoS against your origin and cache.',
                 ],
-                'code': "// app/api/revalidate/route.ts\nimport { revalidateTag } from 'next/cache';\nimport { NextRequest, NextResponse } from 'next/server';\n\nexport async function POST(req: NextRequest) {\n  const secret = req.headers.get('x-revalidate-secret');\n  if (secret !== process.env.REVALIDATE_SECRET) {\n    return NextResponse.json({ ok: false }, { status: 401 });\n  }\n  revalidateTag('posts');\n  return NextResponse.json({ revalidated: true });\n}",
+                'code': "// app/api/revalidate/route.ts\nimport { revalidateTag } from 'next/cache';\nimport { NextRequest, NextResponse } from 'next/server';\n\nexport async function POST(req: NextRequest) {\n  const secret = req.headers.get('x-revalidate-secret');\n  if (secret !== process.env.REVALIDATE_SECRET) {\n    return NextResponse.json({ ok: false }, { status: 401 });\n  }\n  // Next.js 16: second argument required; { expire: 0 } expires immediately for webhooks\n  revalidateTag('posts', { expire: 0 });\n  return NextResponse.json({ revalidated: true });\n}",
                 'code_lang': 'typescript',
             },
             {
@@ -551,7 +556,7 @@ ARTICLES = [
                     'Reading cookies in a layout opts routes into dynamic rendering. That is correct for dashboards and easy to forget on a shared root layout that also wraps marketing pages. We split layouts so public marketing stays statically cacheable while app routes stay dynamic.',
                     'If you must read cookies deep in a tree, be intentional about which segments inherit dynamic behavior. Accidental dynamic marketing pages raised origin load and erased the TTFB wins from ISR.',
                 ],
-                'code': '// app/(marketing)/layout.tsx — no cookies(), cache-friendly\nexport default function MarketingLayout({ children }) {\n  return <div className="marketing">{children}</div>;\n}\n\n// app/(app)/layout.tsx — auth-aware, dynamic\nimport { cookies } from \'next/headers\';\n\nexport default async function AppLayout({ children }) {\n  const session = cookies().get(\'access_token\');\n  return <AppShell signedIn={Boolean(session)}>{children}</AppShell>;\n}',
+                'code': '// app/(marketing)/layout.tsx — no cookies(), cache-friendly\nexport default function MarketingLayout({ children }) {\n  return <div className="marketing">{children}</div>;\n}\n\n// app/(app)/layout.tsx — auth-aware, dynamic\nimport { cookies } from \'next/headers\';\n\nexport default async function AppLayout({ children }) {\n  const session = (await cookies()).get(\'access_token\');\n  return <AppShell signedIn={Boolean(session)}>{children}</AppShell>;\n}',
                 'code_lang': 'typescript',
             },
             {
@@ -592,6 +597,7 @@ ARTICLES = [
         'description': 'How I decide to add B-tree indexes, read EXPLAIN ANALYZE, and avoid write-heavy indexes that slowed our API more than they helped.',
         'category': 'Databases',
         'date': '2026-06-21',
+        'updated': '2026-09-29',
         'read_min': 12,
         'keywords': 'PostgreSQL indexes, B-tree, EXPLAIN ANALYZE, query performance, index selectivity, Postgres',
         'excerpt': 'I added five indexes in a panic once and made writes 3 times slower. Now I only ship indexes backed by EXPLAIN ANALYZE and a workload note.',
@@ -641,10 +647,10 @@ ARTICLES = [
             {
                 'h2': 'Finding dead indexes in production',
                 'paragraphs': [
-                    'After two weeks of real traffic, I query pg_stat_user_indexes joined to pg_class for size. Anything with zero scans and non-trivial size goes on a drop candidate list. I exclude brand-new indexes and unique constraints that enforce correctness even if rarely used for reads.',
+                    'After two weeks of real traffic, I query pg_stat_user_indexes with pg_relation_size for size. Anything with zero scans and non-trivial size goes on a drop candidate list. I exclude brand-new indexes and unique constraints that enforce correctness even if rarely used for reads.',
                     'I drop one at a time during low traffic, watch APM for a week, then continue. Never bulk-drop six indexes before a holiday weekend.',
                 ],
-                'code': "SELECT\n  schemaname || '.' || relname AS table,\n  indexrelname AS index,\n  idx_scan,\n  pg_size_pretty(pg_relation_size(indexrelid)) AS size\nFROM pg_stat_user_indexes\nJOIN pg_class ON pg_class.oid = indexrelid\nWHERE idx_scan = 0\nORDER BY pg_relation_size(indexrelid) DESC\nLIMIT 20;",
+                'code': "SELECT\n  schemaname || '.' || relname AS table,\n  indexrelname AS index,\n  idx_scan,\n  pg_size_pretty(pg_relation_size(indexrelid)) AS size\nFROM pg_stat_user_indexes\nWHERE idx_scan = 0\nORDER BY pg_relation_size(indexrelid) DESC\nLIMIT 20;",
                 'code_lang': 'sql',
             },
             {
@@ -700,6 +706,7 @@ ARTICLES = [
         'description': 'When I rebase, when I merge, how we avoid rewriting shared history, and the exact commands for a clean PR timeline.',
         'category': 'Developer Tools',
         'date': '2026-06-25',
+        'updated': '2026-09-29',
         'read_min': 12,
         'keywords': 'git rebase vs merge, interactive rebase, feature branch workflow, git pull --rebase, safe git history',
         'excerpt': 'Rebase versus merge is not religion on our team. It is about whether the commits are private and whether we want a linear PR.',
@@ -757,10 +764,10 @@ ARTICLES = [
             {
                 'h2': 'Recovering when a rebase goes wrong',
                 'paragraphs': [
-                    'git rebase --abort is the first escape hatch if you are still mid-rebase. If you already finished and force-pushed something bad, git reflog usually still has the previous tip for a while. I restore with git reset --hard ORIG_HEAD immediately after a bad rebase, or HEAD@{1} from reflog when ORIG_HEAD is gone.',
+                    'git rebase --abort is the first escape hatch if you are still mid-rebase. If you already finished and force-pushed something bad, git reflog usually still has the previous tip for a while. I restore with git reset --hard ORIG_HEAD immediately after a bad rebase, or the branch reflog entry (feature/billing-retry@{1}) when ORIG_HEAD is gone. HEAD@{1} does not work here: HEAD\'s reflog records every step of the rebase, so it usually points at the last replayed commit.',
                     'Tell anyone who pulled the bad tip to reset to the restored SHA. Communication matters more than the exact command once history diverged on a shared remote.',
                 ],
-                'code': '# Still in a rebase?\ngit rebase --abort\n\n# Just finished a bad rebase, not pushed yet\ngit reset --hard ORIG_HEAD\n\n# Already pushed; recover tip from reflog, then force-with-lease\ngit reflog\ngit reset --hard HEAD@{1}\ngit push --force-with-lease origin feature/billing-retry',
+                'code': '# Still in a rebase?\ngit rebase --abort\n\n# Just finished a bad rebase, not pushed yet\ngit reset --hard ORIG_HEAD\n\n# Already pushed; recover the pre-rebase tip from the branch reflog, then force-with-lease\ngit reflog show feature/billing-retry\ngit reset --hard feature/billing-retry@{1}\ngit push --force-with-lease origin feature/billing-retry',
                 'code_lang': 'bash',
             },
             {
@@ -774,7 +781,7 @@ ARTICLES = [
                 'h2': 'PR UI settings we standardize',
                 'paragraphs': [
                     'Repos that prefer a linear main enable Allow squash merging and disable merge commits, or enable rebase-merging carefully. Mixed settings across repos confused people about whether they should clean locally.',
-                    'Required status checks on main mean a force-pushed feature branch re-runs CI. That is good. I wait for green after force-with-lease before pinging reviewers again so they do not review an already-superseded SHA. Branch protection on main rejects force pushes; feature branches stay unprotected so rebase workflows work.',
+                    'CI workflows triggered on push and pull request updates re-run on a force-pushed feature branch, and required status checks on main block the merge until they pass. That is good. I wait for green after force-with-lease before pinging reviewers again so they do not review an already-superseded SHA. Branch protection on main rejects force pushes; feature branches stay unprotected so rebase workflows work.',
                 ],
                 'bullets': [
                     'Protect main against force push and direct commits',

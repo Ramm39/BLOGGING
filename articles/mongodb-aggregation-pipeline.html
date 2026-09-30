@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="MongoDB aggregation pipeline, $match $group $lookup, aggregation indexes, MongoDB performance, Node.js MongoDB">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-08-08">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-08-08">August 8, 2026</time> &bull; 9 min read &bull; ~1157 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1237 words
             </div>
           </div>
         </header>
@@ -69,7 +70,7 @@
           <ul>
             <li>Use aggregation when you would otherwise pull large result sets into Node to reduce.</li>
             <li>Put selective $match first so indexes can cut the working set early.</li>
-            <li>Shape fields with $project before heavy $group or $lookup stages.</li>
+            <li>Use $project to shape final output; the optimizer already trims unused fields before $group.</li>
             <li>Verify new pipelines with explain() on realistic data volumes.</li>
             <li>Build stages from allowlists—never interpolate raw user input into pipelines.</li>
             <li>Cap date ranges and cardinality for interactive reports; use batch jobs for huge scans.</li>
@@ -87,7 +88,7 @@
           <p>I avoid $lookup inside hot request paths when a denormalized field would do. Lookups are powerful and expensive. For dashboards that run every minute, I often maintain a summary collection updated by the write path instead.</p>
           <ul>
             <li>$match early — use indexed fields</li>
-            <li>$project early — drop bulky fields before $group</li>
+            <li>$project for final output — the optimizer already drops fields later stages do not use</li>
             <li>$sort after reducing cardinality when you can</li>
             <li>$lookup only for fields you cannot afford to denormalize</li>
             <li>Prefer $facet for multi-metric dashboards in one round trip</li>
@@ -162,7 +163,7 @@
           <p>Keep pipelines in named functions, not inline in route handlers. That makes them testable with a fixture database and easier to review in PRs.</p>
 
           <h2>Facets for dashboard endpoints</h2>
-          <p>Dashboards often need counts, totals, and a small recent list. Three round trips mean three chances to disagree under concurrent writes. $facet runs parallel subpipelines on the same filtered input.</p>
+          <p>Dashboards often need counts, totals, and a small recent list. Three round trips mean three chances to disagree under concurrent writes. $facet runs several independent sub-pipelines over the same filtered input within a single stage. The branches cannot use indexes themselves, and their combined output is one document, so it must stay under the 16MB BSON limit.</p>
           <p>I still $match before $facet so each branch does not rescan the collection. Inside each branch I keep stages minimal. Facets that each $lookup the world will time out together and take the request with them.</p>
           <pre><code>const dashboard = await db.collection(&#x27;orders&#x27;).aggregate([
   { $match: { merchantId: oid, createdAt: { $gte: start } } },
@@ -188,7 +189,7 @@
           <p>Mixing them poorly—running a full aggregation on every change—will melt Atlas. Update a summary collection incrementally on write, and use aggregation for historical ranges and audits.</p>
 
           <h2>Cursor batches and Node memory</h2>
-          <p>toArray() on a huge aggregation result recreates the original problem—Node holds everything. For exports I stream the cursor and write CSV chunks. Set batchSize thoughtfully; default batches can still be large.</p>
+          <p>toArray() on a huge aggregation result recreates the original problem—Node holds everything. For exports I stream the cursor and write CSV chunks. Set batchSize thoughtfully; default batches can still be large. Since MongoDB 6.0 the server allows disk use by default (allowDiskUseByDefault is true), so the explicit allowDiskUse: true below documents intent and overrides a cluster that turned the default off. Atlas Free and Flex clusters ignore allowDiskUse and never spill to disk.</p>
           <p>For HTTP APIs I paginate with $skip/$limit only on small offsets, or better, range on _id or createdAt. Deep $skip on millions of documents is a known performance trap.</p>
           <pre><code>const cursor = db.collection(&#x27;orders&#x27;).aggregate(pipeline, { allowDiskUse: true, batchSize: 500 });
 for await (const doc of cursor) {
@@ -212,16 +213,6 @@ for await (const doc of cursor) {
           <p>Finally, revisit denormalization quarterly. If you $lookup the same customer fields on every list view, copying a display name onto the order at write time may be cheaper. Aggregation is powerful; it is not an excuse to skip modeling.</p>
           <p>That mix—indexed $match first, careful $group, rare $lookup, faceted dashboards, streamed exports—is the practical aggregation toolkit I actually keep reaching for.</p>
 
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Use aggregation when you would otherwise pull large result sets into Node to reduce.</li>
-            <li>Put selective $match first so indexes can cut the working set early.</li>
-            <li>Shape fields with $project before heavy $group or $lookup stages.</li>
-            <li>Verify new pipelines with explain() on realistic data volumes.</li>
-            <li>Build stages from allowlists—never interpolate raw user input into pipelines.</li>
-            <li>Cap date ranges and cardinality for interactive reports; use batch jobs for huge scans.</li>
-          </ul>
-
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
             <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
@@ -232,7 +223,7 @@ for await (const doc of cursor) {
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
         <a href="nodejs-env-vars-security.html" class="btn btn-secondary">&larr; Environment Variables Security for Node Ap…</a>
-        <a href="accessibility-wcag-checklist.html" class="btn btn-primary">Next: A WCAG Checklist Developers Can Finish Bef… &rarr;</a>
+        <a href="debug-nodejs-memory-leaks.html" class="btn btn-primary">Next: Debugging Node.js Memory Leaks with Heap S… &rarr;</a>
       </div>
     </div>
   </main>

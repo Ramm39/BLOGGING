@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="Core Web Vitals, LCP, INP, CLS, web performance, fetchpriority, font-display">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-06-05">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-06-05">June 5, 2026</time> &bull; 12 min read &bull; ~1092 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1111 words
             </div>
           </div>
         </header>
@@ -99,7 +100,7 @@
 /&gt;</code></pre>
 
           <h2>INP: keep the main thread free after clicks</h2>
-          <p>INP replaced FID. It measures how long the page stays unresponsive after a user interaction across the visit. Our worst INP came from a filters panel that re-rendered a 2,000-row table synchronously on every checkbox toggle.</p>
+          <p>INP replaced FID. It observes every click, tap, and keypress during the visit, measures each from input until the next frame is painted, and reports roughly the worst one (ignoring rare outliers on pages with many interactions). Our worst INP came from a filters panel that re-rendered a 2,000-row table synchronously on every checkbox toggle.</p>
           <p>Fixes that moved p75 INP from about 380ms to about 140ms: debounce expensive handlers at 150ms, virtualize long lists, break work with scheduler.postTask or requestIdleCallback for non-urgent updates, and avoid layout thrashing in event handlers. I profile with the Performance panel Interactions track, not guesses.</p>
           <p>Another pattern that hurt us: opening a modal that synchronously parsed a large JSON blob and built a chart. Moving parse and chart construction behind startTransition in React kept the click responsive; the chart filled in a frame later. Users preferred a fast open over a frozen button.</p>
           <pre><code>// Bad: sync filter of huge list on every keystroke
@@ -161,16 +162,6 @@ onCLS(send);</code></pre>
           <p>Before merge on customer-facing routes: identify LCP element; confirm preload and fetchpriority; no layout shift from fonts or banners; interaction handlers under about 50ms of sync work on mid-tier CPU; bundle diff does not add a new blocking script in head.</p>
           <p>We fail the PR if lab LCP on a throttled mobile profile jumps more than 300ms without a documented reason. That rule alone caught two accidental full-page client hydration of marketing content.</p>
           <p>We keep a soft budget of about 170KB gzipped JS for marketing routes. Crossing the budget opens a required comment explaining the trade. That social pressure prevented two accidental charting libraries on the homepage. I paste lab LCP, INP, and CLS on Moto G throttling next to the diff so reviewers stop arguing about vibes.</p>
-
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Trust field p75 from CrUX or RUM over a single Lighthouse run on desktop cable.</li>
-            <li>LCP usually needs a discoverable, prioritized, correctly sized hero image.</li>
-            <li>INP improves when you cut sync main-thread work after clicks and keypresses.</li>
-            <li>CLS is mostly reserved space: dimensions, banners, and font fallbacks.</li>
-            <li>TTFB and third-party tags often dominate real-user LCP more than micro-optimizations.</li>
-            <li>Ship RUM with attribution so you know which element and phase regressed.</li>
-          </ul>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>

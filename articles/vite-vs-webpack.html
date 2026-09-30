@@ -13,9 +13,10 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/articles/vite-vs-webpack.html">
   <meta property="og:site_name" content="BudhiWorks">
-  <meta name="keywords" content="Vite vs Webpack, Vite 2026, Webpack 5, frontend bundler, esbuild Rollup, module federation">
+  <meta name="keywords" content="Vite vs Webpack, Vite 2026, Webpack 5, frontend bundler, Vite 8 Rolldown, Oxc, module federation">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-08-19">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-08-19">August 19, 2026</time> &bull; 8 min read &bull; ~1126 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1171 words
             </div>
           </div>
         </header>
@@ -83,9 +84,9 @@
           <p>I also ask: will juniors on the team debug this build file? Opaque config is an operational liability.</p>
 
           <h2>Where Vite wins for me</h2>
-          <p>Greenfield React, Vue, and Svelte apps start in Vite unless a hard requirement says otherwise. Native ESM in dev plus esbuild transforms make cold starts feel instant compared to older Webpack setups we still have.</p>
+          <p>Greenfield React, Vue, and Svelte apps start in Vite unless a hard requirement says otherwise. Native ESM in dev plus fast Oxc transforms (esbuild before Vite 8) make cold starts feel instant compared to older Webpack setups we still have.</p>
           <p>Config stays smaller for common cases. Official templates are good. SSR and library modes are first-class enough for most product work I do.</p>
-          <p>Production builds use Rollup under the hood. Tree-shaking is strong. For typical SPAs targeting modern browsers, I have not missed Webpack.</p>
+          <p>Since Vite 8 (March 2026), production builds and dependency pre-bundling use Rolldown, a Rust bundler with a Rollup-compatible plugin API, instead of Rollup and esbuild. Tree-shaking is strong. For typical SPAs targeting modern browsers, I have not missed Webpack.</p>
           <ul>
             <li>New SPAs and component libraries</li>
             <li>Teams that value fast HMR over custom loader archaeology</li>
@@ -115,10 +116,14 @@ export default defineConfig({
   server: { port: 5173, proxy: { &#x27;/api&#x27;: &#x27;http://localhost:3000&#x27; } },
   build: {
     sourcemap: true,
-    rollupOptions: {
+    // Vite 8: rollupOptions is now rolldownOptions, and the object form of
+    // manualChunks is gone; use Rolldown&#x27;s codeSplitting groups instead.
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          vendor: [&#x27;react&#x27;, &#x27;react-dom&#x27;],
+        codeSplitting: {
+          groups: [
+            { name: &#x27;vendor&#x27;, test: /node_modules[\\/]react(-dom)?[\\/]/ },
+          ],
         },
       },
     },
@@ -127,7 +132,7 @@ export default defineConfig({
 
           <h2>Decision heuristic I use in 2026</h2>
           <p>New app, modern browsers, no Federation mandate: Vite. Existing Webpack app with no pain: leave it, maybe upgrade Webpack and cache settings. Painful Webpack only in local dev: evaluate Vite for that package. Hard Federation or unique loaders: stay on Webpack until there is a funded migration.</p>
-          <p>Also check your framework’s recommendation. Next.js and Nuxt have their own compilers; forcing raw Vite or Webpack underneath fighting the framework is usually the wrong fight.</p>
+          <p>Also check your framework’s recommendation. Next.js ships its own bundler (Turbopack) and Nuxt builds on Vite by default; forcing a different bundler underneath the framework is usually the wrong fight.</p>
           <ul>
             <li>Optimize for daily edit-refresh loop first</li>
             <li>Treat production parity and plugin gaps as blockers</li>
@@ -137,12 +142,12 @@ export default defineConfig({
           </ul>
 
           <h2>Plugin ecosystems and the long tail</h2>
-          <p>Vite’s plugin API is Rollup-compatible for build and has a separate story for dev middleware. Most popular tools have Vite plugins in 2026. The long tail still bites: an internal Markdown transform written against Webpack’s loader API may need a rewrite.</p>
+          <p>Vite’s plugin API is Rollup-compatible (Rolldown keeps that API since Vite 8) and has a separate story for dev middleware. Most popular tools have Vite plugins in 2026. The long tail still bites: an internal Markdown transform written against Webpack’s loader API may need a rewrite.</p>
           <p>Estimate that rewrite in hours before promising “we’ll just switch.” I once quoted two days and spent two weeks on a SVG pipeline that depended on Webpack’s resourceQuery quirks.</p>
           <p>Conversely, staying on Webpack forever because of one obscure plugin can cost more in engineer frustration than rewriting the plugin. Put a calendar reminder on “revisit migration” every two quarters if DX pain is high.</p>
 
           <h2>TypeScript, CSS, and monorepos</h2>
-          <p>Both tools handle TypeScript. Vite leans on esbuild for transpile speed and leaves typechecking to vue-tsc/tsc in CI—which is the right split. Do not expect the bundler to be your typechecker.</p>
+          <p>Both tools handle TypeScript. Vite leans on Oxc (esbuild before Vite 8) for transpile speed and leaves typechecking to vue-tsc/tsc in CI—which is the right split. Do not expect the bundler to be your typechecker.</p>
           <p>In monorepos, Vite’s dependency prebundling needs careful optimizeDeps includes for linked workspace packages. Webpack’s module resolution pain is older and better documented in tribal knowledge—neither is free.</p>
           <p>Pick one story for CSS: CSS modules, vanilla-extract, Tailwind. Fighting the bundler and the CSS approach at the same time makes migrations unreadable in review.</p>
 
@@ -158,7 +163,7 @@ export default defineConfig({
       formats: [&#x27;es&#x27;],
       fileName: &#x27;ui-kit&#x27;,
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: [&#x27;react&#x27;, &#x27;react-dom&#x27;],
     },
   },
@@ -173,16 +178,6 @@ export default defineConfig({
           <p>Re-evaluate yearly. The gap between tools narrows and widens as releases ship. The constant is your constraints: team skill, plugin needs, and customer-facing risk.</p>
           <p>Ignore internet arguments that declare one tool dead. Ship software. Measure cold start. Measure production. Choose the boring option that makes Monday morning editing pleasant.</p>
 
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Choose Vite for most new modern SPAs; keep Webpack when Federation or unique loaders dominate.</li>
-            <li>Judge tools by cold start, HMR, production correctness, and migration cost—not brand.</li>
-            <li>Expect larger wins in local DX than in already-cached CI production builds.</li>
-            <li>Migrate incrementally: leaf apps first, host bundles later.</li>
-            <li>Watch import.meta.env, CSS, and asset URL differences during cutover.</li>
-            <li>Follow your meta-framework’s default bundler unless you have a strong reason not to.</li>
-          </ul>
-
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
             <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
@@ -193,7 +188,7 @@ export default defineConfig({
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
         <a href="debug-nodejs-memory-leaks.html" class="btn btn-secondary">&larr; Debugging Node.js Memory Leaks with Heap S…</a>
-        <a href="kubernetes-secrets-management.html" class="btn btn-primary">Next: Kubernetes Secrets Management Basics Witho… &rarr;</a>
+        <a href="deploy-static-site-guide.html" class="btn btn-primary">Next: Deploy a Static Site: Netlify, GitHub Page… &rarr;</a>
       </div>
     </div>
   </main>

@@ -2,172 +2,142 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://budhiworks.com/</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/about.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/contact.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/author.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/start-here.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/resources.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/editorial-policy.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/privacy.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/terms.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/deploy-static-site-guide.html</loc>
-    <lastmod>2026-08-27</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://budhiworks.com/articles/kubernetes-secrets-management.html</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/vite-vs-webpack.html</loc>
-    <lastmod>2026-08-19</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/debug-nodejs-memory-leaks.html</loc>
-    <lastmod>2026-08-16</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://budhiworks.com/articles/accessibility-wcag-checklist.html</loc>
-    <lastmod>2026-08-12</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/mongodb-aggregation-pipeline.html</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/nodejs-env-vars-security.html</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/api-rate-limiting.html</loc>
-    <lastmod>2026-08-02</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/optimize-images-webp-avif.html</loc>
-    <lastmod>2026-07-28</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/debounce-throttle-javascript.html</loc>
-    <lastmod>2026-07-22</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://budhiworks.com/articles/sql-vs-nosql-when-to-choose.html</loc>
-    <lastmod>2026-07-19</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://budhiworks.com/articles/rest-api-design-best-practices.html</loc>
-    <lastmod>2026-07-15</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://budhiworks.com/articles/github-actions-ci-cd.html</loc>
-    <lastmod>2026-07-12</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/redis-caching-patterns.html</loc>
-    <lastmod>2026-07-08</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/nginx-reverse-proxy-setup.html</loc>
-    <lastmod>2026-07-05</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://budhiworks.com/articles/css-flexbox-vs-grid.html</loc>
-    <lastmod>2026-07-01</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/typescript-generics-practical-guide.html</loc>
-    <lastmod>2026-06-28</lastmod>
+    <lastmod>2026-08-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/git-rebase-vs-merge.html</loc>
-    <lastmod>2026-06-25</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/postgresql-indexes-explained.html</loc>
-    <lastmod>2026-06-21</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/nextjs-app-router-data-fetching.html</loc>
-    <lastmod>2026-06-18</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/react-useeffect-common-mistakes.html</loc>
-    <lastmod>2026-06-14</lastmod>
+    <lastmod>2026-08-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/docker-compose-for-developers.html</loc>
-    <lastmod>2026-06-11</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/jwt-authentication-nodejs.html</loc>
-    <lastmod>2026-06-08</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/core-web-vitals-guide.html</loc>
-    <lastmod>2026-06-05</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://budhiworks.com/articles/how-to-fix-cors-errors.html</loc>
-    <lastmod>2026-06-02</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <priority>0.8</priority>
   </url>
 </urlset>

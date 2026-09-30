@@ -15,7 +15,8 @@
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="nginx reverse proxy nodejs, nginx ssl letsencrypt, proxy_pass node, nginx websocket, deploy node behind nginx">
   <meta property="og:type" content="article">
-  <meta property="article:published_time" content="2026-07-05">
+  <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-09-29">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -59,7 +60,7 @@
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              <time datetime="2026-07-05">July 5, 2026</time> &bull; 8 min read &bull; ~1009 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 4 min read &bull; ~1027 words
             </div>
           </div>
         </header>
@@ -99,7 +100,8 @@ server {
 }
 
 server {
-  listen 443 ssl http2;
+  listen 443 ssl;
+  http2 on;
   server_name api.example.com;
 
   ssl_certificate     /etc/letsencrypt/live/api.example.com/fullchain.pem;
@@ -137,7 +139,7 @@ location /api/uploads {
 }</code></pre>
 
           <h2>SSL notes I write down for every server</h2>
-          <p>Use certbot with the nginx plugin or webroot. Prefer fullchain.pem, not cert.pem alone—missing intermediates cause mobile clients to fail while desktop Chrome looks fine. Enable a modern cipher suite and turn on OCSP stapling when you have time; HSTS only after you are sure HTTPS works everywhere.</p>
+          <p>Use certbot with the nginx plugin or webroot. Prefer fullchain.pem, not cert.pem alone—missing intermediates cause mobile clients to fail while desktop Chrome looks fine. Enable a modern cipher suite. Skip OCSP stapling with Let’s Encrypt: it ended OCSP in 2025, its certificates carry no OCSP URL, and Nginx ignores ssl_stapling for them with a warning. Enable HSTS only after you are sure HTTPS works everywhere.</p>
           <p>Reload Nginx after renewals. Certbot usually installs a timer, but I still verify with `sudo nginx -t &amp;&amp; sudo systemctl reload nginx` after the first issuance. I once had a valid new cert on disk while Nginx kept serving the expired one until a manual reload.</p>
           <p>For staging, use a real subdomain certificate, not a permanent exception in every teammate’s browser. Fake SSL in staging trains people to ignore warnings in production.</p>
           <p>TLS 1.2+ only. Disable ancient ciphers. Mozilla’s intermediate profile is a sane default for most business apps. I keep a calendar reminder to revisit cipher config yearly because defaults rot.</p>
@@ -182,15 +184,6 @@ location /api/ {
   proxy_set_header X-Forwarded-Proto $scheme;
 }</code></pre>
 
-          <h2>Key takeaways</h2>
-          <ul>
-            <li>Bind Node to localhost; let Nginx own 80/443</li>
-            <li>Always forward Host, X-Forwarded-For, and X-Forwarded-Proto</li>
-            <li>WebSockets need Upgrade headers and longer timeouts</li>
-            <li>Use fullchain.pem and reload Nginx after cert renewals</li>
-            <li>Serve static assets from Nginx when you can</li>
-          </ul>
-
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
             <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
@@ -200,7 +193,7 @@ location /api/ {
       </article>
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-        <a href="css-flexbox-vs-grid.html" class="btn btn-secondary">&larr; Flexbox vs CSS Grid: When I Use Each in Pr…</a>
+        <a href="typescript-generics-practical-guide.html" class="btn btn-secondary">&larr; Practical TypeScript Generics for APIs and…</a>
         <a href="redis-caching-patterns.html" class="btn btn-primary">Next: Redis Caching Patterns I Use: Cache-Aside,… &rarr;</a>
       </div>
     </div>
