@@ -4,19 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Debounce vs Throttle in JavaScript (With Code You Can Paste) — BudhiWorks</title>
-  <meta name="description" content="Working debounce and throttle implementations, when to use each for search, scroll, and resize, plus React-friendly notes from production UI work.">
+  <meta name="description" content="Working debounce and throttle implementations, when to use each for search, scroll, and resize, plus React-friendly notes for real UI work.">
   <link rel="canonical" href="https://budhiworks.com/articles/debounce-throttle-javascript.html">
   <meta name="color-scheme" content="dark light">
   <meta name="author" content="Ram">
   <meta property="og:title" content="Debounce vs Throttle in JavaScript (With Code You Can Paste) — BudhiWorks">
-  <meta property="og:description" content="Working debounce and throttle implementations, when to use each for search, scroll, and resize, plus React-friendly notes from production UI work.">
+  <meta property="og:description" content="Working debounce and throttle implementations, when to use each for search, scroll, and resize, plus React-friendly notes for real UI work.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/articles/debounce-throttle-javascript.html">
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="debounce vs throttle javascript, debounce javascript, throttle scroll, lodash debounce, input debounce react">
   <meta property="og:type" content="article">
   <meta property="article:published_time" content="2026-08-29">
-  <meta property="article:modified_time" content="2026-09-29">
+  <meta property="article:modified_time" content="2026-10-09">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -55,12 +55,12 @@
         <header class="article-header">
           <span class="badge badge-cyan">Frontend</span>
           <h1 class="article-title">Debounce vs Throttle in JavaScript (With Code You Can Paste)</h1>
-          <p class="article-lead">Debounce and throttle both limit how often a function runs, but they fix different UX problems. Here are the implementations I use and the call sites that broke when I mixed them up.</p>
+          <p class="article-lead">Debounce and throttle both limit how often a function runs, but they fix different UX problems. Here are paste-ready implementations and the call sites that break when you mix them up.</p>
           <div class="article-meta">
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 4 min read &bull; ~968 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-10-09">October 9, 2026</time> &bull; 4 min read &bull; ~982 words
             </div>
           </div>
         </header>
@@ -79,10 +79,10 @@
         <div class="article-body article-prose">
           <h2>The difference in one sentence each</h2>
           <p>Debounce: wait until events stop arriving, then run once. Throttle: run at most once per time window while events keep arriving. Search-as-you-type wants debounce. Scroll position syncing often wants throttle.</p>
-          <p>I once debounced a scroll handler for a reading progress bar. The bar jumped only after the user stopped scrolling—useless. Switching to throttle made it track continuously without firing on every pixel.</p>
+          <p>A common mix-up: debouncing the scroll handler for a reading progress bar. The bar only jumps after the user stops scrolling—useless. Throttle makes it track continuously without firing on every pixel.</p>
           <p>Both techniques are about respecting the main thread and the network. They are not interchangeable spices you sprinkle until jank disappears.</p>
           <p>Think in terms of the signal: bursty discrete intent (typing a query) versus continuous streams (scroll position). That framing picks the tool before you debate millisecond constants.</p>
-          <p>If you only remember the scroll progress mistake and the search typeahead pattern, you already outrank most copy-paste snippets that treat both tools as synonyms.</p>
+          <p>If you only remember the scroll-progress mistake and the search typeahead pattern, you are ahead of most copy-paste snippets that treat both tools as synonyms.</p>
 
           <h2>Debounce you can trust</h2>
           <p>Trailing debounce is the common case for inputs. Leading+trailing variants exist; start with trailing. Always cancel on unmount in SPA components or you will setState on dead trees.</p>
@@ -129,7 +129,7 @@ const onQuery = debounce(async (q) =&gt; {
 input.addEventListener(&quot;input&quot;, (e) =&gt; onQuery(e.target.value));</code></pre>
 
           <h2>Throttle for continuous signals</h2>
-          <p>Throttle guarantees periodic updates during a burst. I use a trailing call so the last event is not lost—important for resize and scroll end positions.</p>
+          <p>Throttle guarantees periodic updates during a burst. Include a trailing call so the last event is not lost—important for resize and scroll end positions.</p>
           <p>For pointer-move annotations on a canvas, throttle to animation-frame cadence or ~16–32ms. Throttling to 200ms makes drawing feel drunk.</p>
           <p>requestAnimationFrame is sometimes a better throttle for visual updates. It aligns work to paint. For network or analytics, time-based throttle remains clearer.</p>
           <p>Document whether your throttle is leading, trailing, or both. Callers who assume leading behavior will swear your helper is broken when the first event waits for the window.</p>
@@ -191,9 +191,9 @@ window.addEventListener(
 
           <h2>React notes without a library lecture</h2>
           <p>Creating debounce inside render re-creates timers every paint—store the debounced function in useRef or useMemo with stable deps. Better: debounce in an event handler factory created once.</p>
-          <p>For data fetching, pair debounce with abort controllers so an older response cannot overwrite a newer query. That bug looked like “search flickers wrong results” until we aborted in-flight fetches.</p>
+          <p>For data fetching, pair debounce with abort controllers so an older response cannot overwrite a newer query. Without that, search shows “flickering wrong results” whenever a slow response for an old query lands last.</p>
           <p>useDeferredValue can replace some debounce for pure UI lag. It does not replace debounce for network calls—you still need to gate fetches.</p>
-          <p>In tests, fake timers. Debounce bugs appear as intermittent failures when wall clocks vary. I assert call counts under jest.useFakeTimers or equivalent.</p>
+          <p>In tests, use fake timers. Debounce bugs appear as intermittent failures when wall clocks vary. Assert call counts under jest.useFakeTimers or an equivalent.</p>
           <pre><code>import { useEffect, useMemo, useState } from &quot;react&quot;;
 
 function useDebouncedValue(value, wait = 300) {
@@ -210,15 +210,15 @@ function useDebouncedValue(value, wait = 300) {
 // useEffect(() =&gt; { fetchSearch(debouncedQuery); }, [debouncedQuery]);</code></pre>
 
           <h2>Libraries vs hand-rolled</h2>
-          <p>Lodash debounce/throttle are fine and well-tested. For a design system I still paste a 20-line helper to avoid pulling lodash into a critical path bundle. Either way, understand leading/trailing options before arguing about packages.</p>
+          <p>Lodash debounce/throttle are fine and well-tested. For a design system, a 20-line helper avoids pulling lodash into a critical-path bundle. Either way, understand leading/trailing options before arguing about packages.</p>
           <p>Measure: if your input handler triggers network, debounce is a product requirement, not a micro-optimization.</p>
           <p>Write two unit tests: rapid calls only invoke once for debounce after wait, and throttle invokes immediately then respects the window. Those tests catch the off-by-one bugs that make UX feel haunted.</p>
           <p>Bundle size arguments aside, copying a well-understood 20-line helper into a repo is fine. Just put it in one module so you do not end up with five slightly different throttles.</p>
           <p>Whatever you choose, keep one implementation per app. Five slightly different throttles guarantee one of them forgets to cancel on unmount.</p>
 
-          <h2>Real incident: search stampede from the browser</h2>
-          <p>We shipped typeahead without debounce on a Black Friday microsite. Each keypress hit Elasticsearch. A burst of traffic plus fast typers multiplied into a nasty queue. Adding 250ms debounce and abortable fetches cut search QPS by roughly 70% with no complaints about lag.</p>
-          <p>The complementary fix was a 429-aware client that backed off. Client-side pacing and server-side limits together kept the search cluster boring—which is what you want on sale day.</p>
+          <h2>Scenario: a search stampede from the browser</h2>
+          <p>Consider typeahead shipped without debounce on a sale-day microsite. Every keypress hits the search cluster, and a traffic burst multiplied by fast typers turns into a long queue. A debounce of around 250ms plus abortable fetches typically removes most of those requests, because fast typists send one query per pause instead of one per character—and users do not notice the delay.</p>
+          <p>The complementary fix is a 429-aware client that backs off. Client-side pacing and server-side limits together keep the search cluster boring—which is what you want on sale day.</p>
           <ul>
             <li>Debounce before you scale the search cluster</li>
             <li>Abort stale requests when the query changes</li>
@@ -227,15 +227,15 @@ function useDebouncedValue(value, wait = 300) {
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
-            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I write practical guides on Node, React/Next.js, Postgres, and the infrastructure that keeps web apps online. Every guide is checked against current official documentation, and corrections are welcome.</p>
             <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
           </div>
         </div>
       </article>
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-        <a href="redis-caching-patterns.html" class="btn btn-secondary">&larr; Redis Caching Patterns I Use: Cache-Aside,…</a>
-        <a href="optimize-images-webp-avif.html" class="btn btn-primary">Next: WebP and AVIF Image Optimization That Actu… &rarr;</a>
+        <a href="redis-caching-patterns.html" class="btn btn-secondary">&larr; Redis Caching Patterns: Cache-Aside, TTL, …</a>
+        <a href="optimize-images-webp-avif.html" class="btn btn-primary">Next: WebP and AVIF Image Optimization for Bette… &rarr;</a>
       </div>
     </div>
   </main>

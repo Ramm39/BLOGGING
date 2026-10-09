@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Redis Caching Patterns I Use: Cache-Aside, TTL, and Stampede Prevention — BudhiWorks</title>
-  <meta name="description" content="Practical Redis cache-aside patterns for Node apps: TTL strategy, stampedes, null caching, and invalidation mistakes from production incidents.">
+  <title>Redis Caching Patterns: Cache-Aside, TTL, and Stampede Prevention — BudhiWorks</title>
+  <meta name="description" content="Practical Redis cache-aside patterns for Node apps: TTL strategy, stampedes, null caching, and the invalidation mistakes that cause stale data.">
   <link rel="canonical" href="https://budhiworks.com/articles/redis-caching-patterns.html">
   <meta name="color-scheme" content="dark light">
   <meta name="author" content="Ram">
-  <meta property="og:title" content="Redis Caching Patterns I Use: Cache-Aside, TTL, and Stampede Prevention — BudhiWorks">
-  <meta property="og:description" content="Practical Redis cache-aside patterns for Node apps: TTL strategy, stampedes, null caching, and invalidation mistakes from production incidents.">
+  <meta property="og:title" content="Redis Caching Patterns: Cache-Aside, TTL, and Stampede Prevention — BudhiWorks">
+  <meta property="og:description" content="Practical Redis cache-aside patterns for Node apps: TTL strategy, stampedes, null caching, and the invalidation mistakes that cause stale data.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/articles/redis-caching-patterns.html">
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="redis cache aside, redis ttl, cache stampede, redis nodejs caching, cache invalidation patterns">
   <meta property="og:type" content="article">
   <meta property="article:published_time" content="2026-08-29">
-  <meta property="article:modified_time" content="2026-09-29">
+  <meta property="article:modified_time" content="2026-10-09">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -54,13 +54,13 @@
       <article class="content-page">
         <header class="article-header">
           <span class="badge badge-cyan">Backend</span>
-          <h1 class="article-title">Redis Caching Patterns I Use: Cache-Aside, TTL, and Stampede Prevention</h1>
-          <p class="article-lead">Caching is easy until a key expires and a thousand requests hammer Postgres at once. These are the Redis patterns I use in production Node services, including how I prevent stampedes.</p>
+          <h1 class="article-title">Redis Caching Patterns: Cache-Aside, TTL, and Stampede Prevention</h1>
+          <p class="article-lead">Caching is easy until a key expires and a thousand requests hammer Postgres at once. These are the Redis patterns that hold up in production Node services, including stampede prevention.</p>
           <div class="article-meta">
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1114 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-10-09">October 9, 2026</time> &bull; 5 min read &bull; ~1101 words
             </div>
           </div>
         </header>
@@ -79,10 +79,10 @@
 
         <div class="article-body article-prose">
           <h2>Cache-aside is the default for a reason</h2>
-          <p>Cache-aside (lazy loading) means the app reads Redis first, and on miss loads from the database, then writes the cache. I prefer it over write-through for most product APIs because the cache stays out of the write path and failed Redis does not block mutations.</p>
-          <p>I wrap this in a small helper so every endpoint does not reinvent JSON serialization and key naming. Keys look like `user:v1:42`—include a version prefix so schema changes are a deploy, not a silent poison.</p>
-          <p>Write-through and read-through layers have their place in platforms with a dedicated cache service team. For a typical Node monolith or modular service, cache-aside keeps behavior visible in application code where I can debug it.</p>
-          <p>I treat Redis as an optimization layer, not the source of truth, for almost every product entity. The exception is ephemeral state that would be wrong to persist—presence, locks, rate-limit counters. Mixing those roles in one mental model causes bad invalidation designs.</p>
+          <p>Cache-aside (lazy loading) means the app reads Redis first, and on a miss loads from the database, then writes the cache. It suits most product APIs better than write-through because the cache stays out of the write path and a failed Redis does not block mutations.</p>
+          <p>Wrap this in a small helper so every endpoint does not reinvent JSON serialization and key naming. Keys look like `user:v1:42`—include a version prefix so schema changes are a deploy, not a silent poison.</p>
+          <p>Write-through and read-through layers have their place in platforms with a dedicated cache service team. For a typical Node monolith or modular service, cache-aside keeps behavior visible in application code where you can debug it.</p>
+          <p>Treat Redis as an optimization layer, not the source of truth, for almost every product entity. The exception is ephemeral state that would be wrong to persist—presence, locks, rate-limit counters. Mixing those roles in one mental model causes bad invalidation designs.</p>
           <pre><code>async function getUser(userId) {
   const key = `user:v1:${userId}`;
   const cached = await redis.get(key);
@@ -99,8 +99,8 @@
 }</code></pre>
 
           <h2>TTL is a product decision, not a constant</h2>
-          <p>Session-ish data: minutes. Public product pages: 5–15 minutes with explicit invalidation on publish. Rarely changing config: hours, but still a TTL so a bug cannot live forever. I avoid “no TTL” keys unless there is a hard invalidation path and monitoring for memory.</p>
-          <p>A mistake I made: caching search results for 24 hours with no purge. Merchants updated inventory; customers saw ghost stock. We cut TTL to 60 seconds and invalidated on stock writes. Support tickets dropped the same day.</p>
+          <p>Session-ish data: minutes. Public product pages: 5–15 minutes with explicit invalidation on publish. Rarely changing config: hours, but still a TTL so a bug cannot live forever. Avoid “no TTL” keys unless there is a hard invalidation path and memory monitoring.</p>
+          <p>A classic mistake: caching search results for 24 hours with no purge. Merchants update inventory; customers see ghost stock. A short TTL (say 60 seconds) plus invalidation on stock writes fixes it.</p>
           <p>Another mistake: identical TTL for every key type. User profiles and homepage fragments do not share a lifecycle. Group keys by freshness requirements and document the matrix next to the Redis client module.</p>
           <p>Clock skew between app servers does not matter for Redis TTL the way people fear, but logical time in soft-TTL payloads does. Store expiry timestamps from Redis TIME or from a single source if you implement soft TTL in application code.</p>
           <ul>
@@ -111,10 +111,10 @@
           </ul>
 
           <h2>Stampede prevention that is good enough</h2>
-          <p>When a hot key expires, many processes miss at once and all hit the DB. That is a cache stampede. My pragmatic fix: single-flight locking with a short Redis lock, plus probabilistic early refresh on soft TTL.</p>
-          <p>The lock approach: on miss, SET lock key NX EX 5. Winner loads DB and fills cache. Losers wait briefly and retry Redis. It is not perfect under extreme load, but it stopped a thundering herd on a homepage fragment that used to spike Postgres CPU every five minutes.</p>
+          <p>When a hot key expires, many processes miss at once and all hit the DB. That is a cache stampede. A pragmatic fix: single-flight locking with a short Redis lock, plus probabilistic early refresh on a soft TTL.</p>
+          <p>The lock approach: on miss, SET lock key NX EX 5. The winner loads from the DB and fills the cache. Losers wait briefly and retry Redis. It is not perfect under extreme load, but it stops the thundering herd that otherwise spikes database CPU every time a hot homepage fragment expires.</p>
           <p>Soft TTL means storing `{ value, expiresAt }` and refreshing early when a random chance fires near expiry. That spreads recompute load instead of aligning every process on the same second.</p>
-          <p>If the lock holder crashes before releasing, the EX on the lock saves you. Never use locks without a short expiry. I have seen indefinite locks freeze homepage rendering after a bad deploy.</p>
+          <p>If the lock holder crashes before releasing, the EX on the lock saves you. Never use locks without a short expiry—an indefinite lock left behind by a crashed deploy can freeze rendering of everything that waits on it.</p>
           <pre><code>async function getWithLock(key, ttlSec, loader) {
   const cached = await redis.get(key);
   if (cached) return JSON.parse(cached);
@@ -138,26 +138,26 @@
 }</code></pre>
 
           <h2>Invalidation without lying to yourself</h2>
-          <p>Delete keys on write when you know them. For lists and fan-out views (`feed:user:9`), invalidation gets messy—prefer short TTLs over trying to delete every derived key. I once built an elaborate tag-based purge system; it was wrong more often than a 90-second TTL.</p>
+          <p>Delete keys on write when you know them. For lists and fan-out views (`feed:user:9`), invalidation gets messy—prefer short TTLs over trying to delete every derived key. Elaborate tag-based purge systems are often wrong more often than a 90-second TTL.</p>
           <p>Never assume Redis is always up. Time out commands (e.g., 50–100ms) and fall through to the database. A hung Redis client with infinite waits takes down the whole API faster than a cold DB.</p>
           <p>When you invalidate, delete the exact key you write. Pattern DELETEs in production (`KEYS user:*`) are how you freeze Redis on a large keyspace. Maintain explicit key lists or use Redis Cluster-friendly designs from day one.</p>
           <p>Transactional outbox patterns help when writes must invalidate reliably. Publish “user.updated” and let a consumer delete keys. In-process deletes after write are fine for monoliths; they get racy in multi-service setups.</p>
 
-          <h2>What I measure</h2>
-          <p>Hit rate alone is vanity. I watch miss latency, DB QPS on hot endpoints, Redis memory, and eviction counts. A 99% hit rate with multi-second miss latency still fails users during expiry storms.</p>
+          <h2>What to measure</h2>
+          <p>Hit rate alone is vanity. Watch miss latency, DB QPS on hot endpoints, Redis memory, and eviction counts. A 99% hit rate with multi-second miss latency still fails users during expiry storms.</p>
           <p>Also log cache key cardinality. Unbounded keys like `search:${rawQuery}` will fill Redis with one-off garbage. Hash or normalize queries, or do not cache them.</p>
           <p>Alert on eviction spikes and on sustained miss latency, not only on Redis CPU. Memory pressure shows up as subtle correctness bugs when hot keys disappear under maxmemory policies.</p>
-          <p>Separate Redis instances (or key prefixes) per environment, not numbered logical DBs: Redis Cluster only supports DB 0, and Redis advises against sharing one instance across unrelated apps. Pointing staging at production Redis “just for a read” is an incident waiting to happen. I namespace keys with env only as a last resort—separate instances are clearer.</p>
-          <p>Export Redis info metrics to the same dashboard as API latency. Correlating eviction spikes with p95 is how we found a cardinality bug in a week instead of a quarter.</p>
+          <p>Use separate Redis instances (or key prefixes) per environment, not numbered logical DBs: Redis Cluster only supports DB 0, and Redis advises against sharing one instance across unrelated apps. Pointing staging at production Redis “just for a read” is an incident waiting to happen. Namespacing keys by env is a last resort—separate instances are clearer.</p>
+          <p>Export Redis INFO metrics to the same dashboard as API latency. Correlating eviction spikes with p95 latency is the fastest way to find a key-cardinality bug.</p>
 
           <h2>Serialization and payload size</h2>
-          <p>JSON is fine until values get large. I strip unused fields before caching API responses and avoid caching entire ORM graphs. A 200KB cached user object that grows with every relation is a tax on every hit.</p>
+          <p>JSON is fine until values get large. Strip unused fields before caching API responses and avoid caching entire ORM graphs. A 200KB cached user object that grows with every relation is a tax on every hit.</p>
           <p>If you need compression, measure first. For small objects, CPU cost can exceed network savings on localhost Redis. For multi-kilobyte HTML fragments, compression sometimes pays.</p>
           <p>When hit rate falls after a deploy, check for accidental key version bumps and for serialization changes that make every read look like a miss after parse errors. Log parse failures explicitly.</p>
 
           <h2>Multi-layer caching without confusion</h2>
-          <p>HTTP cache headers, CDN edge cache, and Redis application cache solve different hops. I label each layer in architecture notes so engineers do not “fix caching” by clearing the wrong place.</p>
-          <p>Browser caches and Redis can disagree after a publish. For user-specific HTML I avoid long CDN TTLs. For public product JSON, CDN plus short Redis TTL can both exist if invalidation paths are documented.</p>
+          <p>HTTP cache headers, CDN edge cache, and Redis application cache solve different hops. Label each layer in architecture notes so engineers do not “fix caching” by clearing the wrong place.</p>
+          <p>Browser caches and Redis can disagree after a publish. For user-specific HTML, avoid long CDN TTLs. For public product JSON, CDN plus short Redis TTL can both exist if invalidation paths are documented.</p>
           <ul>
             <li>Name the layer you are caching at before changing TTLs</li>
             <li>Do not clear Redis to fix a CDN problem</li>
@@ -166,7 +166,7 @@
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
-            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I write practical guides on Node, React/Next.js, Postgres, and the infrastructure that keeps web apps online. Every guide is checked against current official documentation, and corrections are welcome.</p>
             <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
           </div>
         </div>

@@ -3,19 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>React useEffect Mistakes I Keep Reviewing in PRs — BudhiWorks</title>
-  <meta name="description" content="Dependency arrays, cleanup, fetch races, and infinite loops — concrete useEffect anti-patterns from production React code reviews.">
+  <title>React useEffect Mistakes That Keep Showing Up in Code Review — BudhiWorks</title>
+  <meta name="description" content="Dependency arrays, cleanup, fetch races, and infinite loops — concrete useEffect anti-patterns and how to fix them.">
   <link rel="canonical" href="https://budhiworks.com/articles/react-useeffect-common-mistakes.html">
   <meta name="color-scheme" content="dark light">
   <meta name="author" content="Ram">
-  <meta property="og:title" content="React useEffect Mistakes I Keep Reviewing in PRs — BudhiWorks">
-  <meta property="og:description" content="Dependency arrays, cleanup, fetch races, and infinite loops — concrete useEffect anti-patterns from production React code reviews.">
+  <meta property="og:title" content="React useEffect Mistakes That Keep Showing Up in Code Review — BudhiWorks">
+  <meta property="og:description" content="Dependency arrays, cleanup, fetch races, and infinite loops — concrete useEffect anti-patterns and how to fix them.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/articles/react-useeffect-common-mistakes.html">
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="React useEffect, dependency array, cleanup function, infinite loop, Strict Mode, fetch race">
   <meta property="og:type" content="article">
   <meta property="article:published_time" content="2026-08-29">
+  <meta property="article:modified_time" content="2026-10-09">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -53,13 +54,13 @@
       <article class="content-page">
         <header class="article-header">
           <span class="badge badge-cyan">Frontend</span>
-          <h1 class="article-title">React useEffect Mistakes I Keep Reviewing in PRs</h1>
-          <p class="article-lead">Most useEffect bugs I review are not exotic. They are missing deps, missing cleanup, or effects that should have been event handlers.</p>
+          <h1 class="article-title">React useEffect Mistakes That Keep Showing Up in Code Review</h1>
+          <p class="article-lead">Most useEffect bugs are not exotic. They are missing deps, missing cleanup, or effects that should have been event handlers.</p>
           <div class="article-meta">
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; 4 min read &bull; ~1015 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-10-09">October 9, 2026</time> &bull; 4 min read &bull; ~1019 words
             </div>
           </div>
         </header>
@@ -77,14 +78,14 @@
         </div>
 
         <div class="article-body article-prose">
-          <h2>Effect vs event: the question I ask first</h2>
-          <p>If something happens because the user clicked, put it in the click handler. If something synchronizes React with an external system such as document title, WebSocket, or a non-React widget, use an effect. I still see useEffect that saves draft form on every keystroke and hammers the API — that belongs behind a debounce in an event or a dedicated autosave hook with clear intent.</p>
-          <p>React docs pushed this mental model hard, and our bug rate dropped once we enforced it in review by asking what external system this is syncing.</p>
-          <p>Concrete number: on one form, autosave-via-effect fired about 40 requests per minute of typing. Moving to a debounced blur or interval save cut that to about 4 and removed a rate-limit incident on the draft endpoint.</p>
+          <h2>Effect vs event: the first question to ask</h2>
+          <p>If something happens because the user clicked, put it in the click handler. If something synchronizes React with an external system such as document title, a WebSocket, or a non-React widget, use an effect. A common anti-pattern is a useEffect that saves a draft form on every keystroke and hammers the API — that belongs behind a debounce in an event handler or a dedicated autosave hook with clear intent.</p>
+          <p>The React docs push this mental model hard, and it is the single most useful review question: what external system is this effect syncing?</p>
+          <p>Autosave-via-effect is a good illustration: with an effect keyed on the form value, every keystroke can fire a request — dozens per minute of typing. A debounced save, or saving on blur, reduces that to a handful and keeps the draft endpoint well inside its rate limit.</p>
 
           <h2>The infinite loop starter pack</h2>
           <p>Classic: effect sets state that is also in the dependency array, without a guard. Or depending on an object or array literal created each render. Or depending on a function prop that the parent recreates every render.</p>
-          <p>I ask authors to log render counts for a few minutes when they suspect a loop. Seeing 200-plus renders per second in Strict Mode is a strong signal before the tab locks up.</p>
+          <p>When you suspect a loop, log render counts for a short while. Hundreds of renders per second in Strict Mode is a strong signal before the tab locks up.</p>
           <pre><code>// Loop: new options object every render → effect → setState → render → ...
 function Chart({ data }) {
   const [series, setSeries] = useState([]);
@@ -103,8 +104,8 @@ useEffect(() =&gt; {
 }, [data]);</code></pre>
 
           <h2>Fetch without cleanup equals race</h2>
-          <p>User switches from product 1 to product 2 quickly. Request 1 finishes after request 2 and overwrites state. I have watched this show the wrong product name in QA. AbortController in cleanup is the default fix.</p>
-          <p>If you cannot abort, at least ignore stale responses with an incrementing request id or a cancelled flag. The wrong-name bug shipped once because QA clicked slowly.</p>
+          <p>The user switches from product 1 to product 2 quickly. Request 1 finishes after request 2 and overwrites state, so the page shows the wrong product name. AbortController in cleanup is the default fix.</p>
+          <p>If you cannot abort, at least ignore stale responses with an incrementing request id or a cancelled flag. This bug easily slips past QA, because it only appears when someone clicks quickly.</p>
           <pre><code>useEffect(() =&gt; {
   const controller = new AbortController();
   let cancelled = false;
@@ -128,10 +129,10 @@ useEffect(() =&gt; {
 
           <h2>Strict Mode double mount is not your enemy</h2>
           <p>In React 18-plus development, effects mount, clean up, and mount again to surface missing cleanup. Developers fix this by removing Strict Mode. That hides bugs. If your effect opens a socket or increments an analytics counter twice in dev, add proper cleanup and idempotent setup.</p>
-          <p>We once double-charged a metering API in production after a remount path we never tested — Strict Mode would have caught the missing cleanup in dev.</p>
+          <p>Missing cleanup does not stay a dev-only problem: a remount path nobody tested can double-call a metering or billing API in production. Strict Mode’s double invoke exists to surface exactly that in development.</p>
 
           <h2>Derived state that should not be state</h2>
-          <p>If you can compute fullName from first and last during render, do not store it in state updated by an effect. Effects for pure derivation add an extra paint and drift bugs. Same for filtering a list: derive during render or memoize if the list is huge. We only memoized after 5k-plus rows.</p>
+          <p>If you can compute fullName from first and last during render, do not store it in state updated by an effect. Effects for pure derivation add an extra paint and drift bugs. Same for filtering a list: derive during render, and memoize only when the list is genuinely large (thousands of rows) and profiling shows it matters.</p>
           <p>Prop-to-state sync effects are another smell. Prefer fully controlled components or remount with key equals id when you truly need fresh local state per entity.</p>
           <ul>
             <li>Empty deps means once per mount — confirm that is intentional</li>
@@ -142,7 +143,7 @@ useEffect(() =&gt; {
           </ul>
 
           <h2>Subscriptions done right</h2>
-          <p>Window listeners, IntersectionObserver, and media queries need subscribe in the effect and unsubscribe in cleanup. I also keep the handler stable or read latest values via a ref when the listener must stay registered once.</p>
+          <p>Window listeners, IntersectionObserver, and media queries need subscribe in the effect and unsubscribe in cleanup. Keep the handler stable, or read the latest values via a ref when the listener must stay registered once.</p>
           <p>Forums still recommend empty deps plus eslint-disable for listeners that close over state. Prefer a ref for latest state: register once, read ref.current inside the handler. That avoids resubscribing on every render without lying about dependencies.</p>
           <pre><code>useEffect(() =&gt; {
   function onResize() {
@@ -153,8 +154,8 @@ useEffect(() =&gt; {
   return () =&gt; window.removeEventListener(&#x27;resize&#x27;, onResize);
 }, []);</code></pre>
 
-          <h2>Timers and intervals I keep rejecting</h2>
-          <p>Polling with setInterval inside an effect without clearing it on unmount or dependency change leaks timers. I have seen tabs with dozens of intervals after soft navigation in an SPA shell.</p>
+          <h2>Timers and intervals that leak</h2>
+          <p>Polling with setInterval inside an effect without clearing it on unmount or dependency change leaks timers. In an SPA shell, soft navigation can leave a tab running dozens of intervals.</p>
           <p>Prefer setTimeout chains when the interval should wait for the previous fetch to finish, or use a library that owns polling. Always return clearInterval or clearTimeout from the effect cleanup.</p>
           <pre><code>useEffect(() =&gt; {
   let timer = null;
@@ -173,20 +174,20 @@ useEffect(() =&gt; {
 }, []);</code></pre>
 
           <h2>Data libraries versus hand-rolled effects</h2>
-          <p>If the team already uses React Query or SWR, I reject new useEffect fetch for server state unless there is a clear gap. Those libraries handle caching, dedupe, retries, and cancellation. Re-implementing them poorly is how we got three different loading-state conventions in one app.</p>
+          <p>If the team already uses React Query or SWR, avoid new useEffect fetches for server state unless there is a clear gap. Those libraries handle caching, dedupe, retries, and cancellation. Re-implementing them poorly is how one app ends up with three different loading-state conventions.</p>
           <p>Effects still make sense for wiring: syncing a query result into a non-React map SDK, or writing document.title. Keep the boundary clear — server state in the library, external sync in effects. When migrating, replace one screen at a time and delete the old effect rather than leaving both paths.</p>
 
           <h2>Measuring before micro-optimizing effects</h2>
-          <p>Not every effect that runs twice in Strict Mode is a production bug. I care when it hits the network, writes to analytics, or mutates a third-party widget. Cosmetic double logs in development are noise.</p>
-          <p>For expensive sync work after render, I check the Profiler. One optimize PR wrapped derived data in an effect to keep render pure and made the UI worse by delaying paint. We reverted and computed during render instead. Profile first, then decide whether an effect earns its keep.</p>
+          <p>Not every effect that runs twice in Strict Mode is a production bug. It matters when it hits the network, writes to analytics, or mutates a third-party widget. Cosmetic double logs in development are noise.</p>
+          <p>For expensive sync work after render, check the Profiler first. Moving derived data into an effect “to keep render pure” usually makes the UI worse by delaying paint—computing during render is often faster. Profile first, then decide whether an effect earns its keep.</p>
 
-          <h2>What I write in the review comment</h2>
-          <p>Is this syncing an external system? If not, move to the event handler. Will this race when id changes? What cleans this up under Strict Mode double invoke? Those three questions catch most of our useEffect defects before merge.</p>
-          <p>If the author cannot answer in one sentence, I ask them to delete the effect and try again. Roughly half the time the better design appears within minutes. I keep a short internal doc with before and after snippets of these patterns; linking it from the PR template cut repeat review comments by roughly half.</p>
+          <h2>Three review questions</h2>
+          <p>Is this syncing an external system? If not, move it to the event handler. Will this race when the id changes? What cleans this up under Strict Mode’s double invoke? Those three questions catch most useEffect defects before merge.</p>
+          <p>If the author cannot answer in one sentence, deleting the effect and trying again often produces the better design within minutes. A short internal doc with before-and-after snippets of these patterns, linked from the PR template, saves writing the same review comment over and over.</p>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
-            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I write practical guides on Node, React/Next.js, Postgres, and the infrastructure that keeps web apps online. Every guide is checked against current official documentation, and corrections are welcome.</p>
             <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
           </div>
         </div>

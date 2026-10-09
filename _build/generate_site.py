@@ -44,9 +44,9 @@ AUTHOR = {
     "name": "Ram",
     "role": "Founder & Editor, BudhiWorks",
     "bio": (
-        "I build and ship production web apps — Node, React/Next.js, Postgres, and "
-        "the boring infrastructure that keeps them online. BudhiWorks is where I "
-        "publish the guides I wish I had when something broke at 2 a.m."
+        "I write practical guides on Node, React/Next.js, Postgres, and the "
+        "infrastructure that keeps web apps online. Every guide is checked against "
+        "current official documentation, and corrections are welcome."
     ),
     "email": "contact@budhiworks.com",
     "initials": "RM",
@@ -388,7 +388,7 @@ def write_about() -> None:
         <p>“Budhi” points to practical intelligence — judgment you use while building. The site focuses on:</p>
         <ul>
           <li>Problems people actually type into Google (CORS, JWT cookies, Core Web Vitals, Docker Compose).</li>
-          <li>Guides with copy-pasteable commands and the failure modes I have hit in production.</li>
+          <li>Guides with copy-pasteable commands and the failure modes that come up in real projects.</li>
           <li>A small catalog ({len(ARTICLES)} posts) instead of a flood of lookalike essays.</li>
         </ul>
       </section>
@@ -492,7 +492,7 @@ def write_author() -> None:
   </main>"""
     page = shell(
         "Ram — Author at BudhiWorks",
-        "Meet Ram, founder and editor of BudhiWorks: practical web engineering guides from production experience.",
+        "Meet Ram, founder and editor of BudhiWorks: practical web engineering guides checked against official documentation.",
         f"{SITE}/author.html",
         "about",
         body,

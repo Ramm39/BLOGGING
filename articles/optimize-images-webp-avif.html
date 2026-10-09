@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebP and AVIF Image Optimization That Actually Improves LCP — BudhiWorks</title>
+  <title>WebP and AVIF Image Optimization for Better LCP — BudhiWorks</title>
   <meta name="description" content="Practical WebP/AVIF workflow for better LCP: encoding settings, picture elements, preload pitfalls, CDN tips, and mistakes that made LCP worse.">
   <link rel="canonical" href="https://budhiworks.com/articles/optimize-images-webp-avif.html">
   <meta name="color-scheme" content="dark light">
   <meta name="author" content="Ram">
-  <meta property="og:title" content="WebP and AVIF Image Optimization That Actually Improves LCP — BudhiWorks">
+  <meta property="og:title" content="WebP and AVIF Image Optimization for Better LCP — BudhiWorks">
   <meta property="og:description" content="Practical WebP/AVIF workflow for better LCP: encoding settings, picture elements, preload pitfalls, CDN tips, and mistakes that made LCP worse.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/articles/optimize-images-webp-avif.html">
@@ -16,7 +16,7 @@
   <meta name="keywords" content="webp avif optimization, improve lcp images, picture element webp, image compression web performance, avif vs webp">
   <meta property="og:type" content="article">
   <meta property="article:published_time" content="2026-08-29">
-  <meta property="article:modified_time" content="2026-09-29">
+  <meta property="article:modified_time" content="2026-10-09">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -54,13 +54,13 @@
       <article class="content-page">
         <header class="article-header">
           <span class="badge badge-cyan">Web Performance</span>
-          <h1 class="article-title">WebP and AVIF Image Optimization That Actually Improves LCP</h1>
-          <p class="article-lead">Hero images dominate LCP on most marketing pages I audit. Switching to AVIF/WebP helps only if sizing, priority, and encoding are right—here is the workflow that moved real numbers.</p>
+          <h1 class="article-title">WebP and AVIF Image Optimization for Better LCP</h1>
+          <p class="article-lead">Hero images dominate LCP on most marketing pages. Switching to AVIF/WebP helps only if sizing, priority, and encoding are right—here is a workflow that moves the metric.</p>
           <div class="article-meta">
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 4 min read &bull; ~1004 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-10-09">October 9, 2026</time> &bull; 4 min read &bull; ~1010 words
             </div>
           </div>
         </header>
@@ -80,13 +80,13 @@
         <div class="article-body article-prose">
           <h2>LCP is usually an image problem</h2>
           <p>On content and landing pages, the largest contentful paint is often a hero image or a big poster frame. Compressing that asset, serving a modern format, and helping the browser discover it early beats most framework tricks.</p>
-          <p>I once “optimized” a site by lazy-loading the hero. LCP got worse because the browser deprioritized the most important paint. Rule: LCP image gets eager loading and high fetch priority; everything below the fold can be lazy.</p>
+          <p>A classic mistake is lazy-loading the hero image. LCP gets worse because the browser deprioritizes the most important paint. Rule: the LCP image gets eager loading and high fetch priority; everything below the fold can be lazy.</p>
           <p>Confirm the LCP element in field data or a throttled lab run before you spend a week converting a thousand blog thumbnails. Fix the winner first.</p>
-          <p>Lighthouse lab scores on desktop hid our mobile LCP pain. Always throttle CPU and network or use field data. Optimizing for an unthrottled MacBook creates false confidence.</p>
-          <p>Text blocks can also be LCP, but on the marketing pages I audit, images win. Still check: if LCP is a text block, your image work will not move the metric no matter how clever the codec.</p>
+          <p>Lighthouse lab scores on desktop can hide mobile LCP pain. Always throttle CPU and network or use field data. Optimizing for an unthrottled laptop creates false confidence.</p>
+          <p>Text blocks can also be LCP, though on marketing pages images usually win. Still check: if LCP is a text block, your image work will not move the metric no matter how clever the codec.</p>
 
           <h2>Encode once, serve many</h2>
-          <p>Generate AVIF and WebP from a high-quality source (not from an already crushed JPEG). Keep a JPEG/PNG fallback for ancient clients. I aim for visually lossless enough at the sizes we actually display—not a 2400px asset in a 600px slot.</p>
+          <p>Generate AVIF and WebP from a high-quality source (not from an already crushed JPEG). Keep a JPEG/PNG fallback for ancient clients. Aim for visually lossless at the sizes you actually display—not a 2400px asset in a 600px slot.</p>
           <p>Typical starting points: AVIF quality around 45–60, WebP 70–80, then eyeball on a real phone. Automate with Squoosh CLI, sharp, or your CDN’s transformer so humans do not hand-export every blog thumbnail.</p>
           <p>Screenshots with UI chrome often need higher quality than photos. Watch for banding in gradients—AVIF can look great at small sizes and weird on flat brand colors if you push too hard.</p>
           <p>Preserve ICC profiles when color accuracy matters for brand assets. Blind conversion pipelines sometimes shift colors enough that design rejects the “optimized” hero.</p>
@@ -153,10 +153,10 @@ await sharp(&quot;hero.png&quot;)
           </ul>
 
           <h2>CDN and caching practicalities</h2>
-          <p>If your CDN can convert on the fly (`format=auto`), great—still set sane max widths. Cache-Control should be long-lived with fingerprinted filenames. I measure before/after with WebPageTest or CrUX, not only Lighthouse on a cable connection.</p>
-          <p>On one brochure site, AVIF cut hero transfer from ~450KB JPEG to ~90KB AVIF. LCP dropped about 0.8s on mid-tier mobile once we also fixed `sizes` and removed lazy-loading. Format alone was not the whole win.</p>
+          <p>If your CDN can convert on the fly (`format=auto`), great—still set sane max widths. Cache-Control should be long-lived with fingerprinted filenames. Measure before and after with WebPageTest or CrUX, not only Lighthouse on a fast connection.</p>
+          <p>Format alone is rarely the whole win. A hero JPEG of several hundred kilobytes often shrinks to a fraction of that as AVIF, but the LCP improvement only shows up fully once `sizes` is correct and lazy-loading is removed from the hero. Measure each change separately so you know which one mattered.</p>
           <p>Watch Content-Type headers from origin. Serving AVIF as octet-stream breaks negotiation in some setups. Be explicit.</p>
-          <p>SVGs for simple illustrations beat photos encoded as AVIF. Do not rasterize logos. I still find PNG logos in heroes that should have been SVG five years ago.</p>
+          <p>SVGs for simple illustrations beat photos encoded as AVIF. Do not rasterize logos—PNG logos in heroes are still common and should be SVG.</p>
           <p>Vary on Accept only if you truly negotiate at the CDN and understand cache key explosion. Many teams are safer generating distinct URLs per format and width.</p>
 
           <h2>A short production checklist</h2>
@@ -180,7 +180,7 @@ await sharp(&quot;hero.png&quot;)
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
-            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I write practical guides on Node, React/Next.js, Postgres, and the infrastructure that keeps web apps online. Every guide is checked against current official documentation, and corrections are welcome.</p>
             <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
           </div>
         </div>

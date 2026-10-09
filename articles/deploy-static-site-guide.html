@@ -16,7 +16,7 @@
   <meta name="keywords" content="deploy static site, Netlify deploy, GitHub Pages, Nginx static files, HTTPS Let&#x27;s Encrypt, cache-control headers">
   <meta property="og:type" content="article">
   <meta property="article:published_time" content="2026-08-29">
-  <meta property="article:modified_time" content="2026-09-29">
+  <meta property="article:modified_time" content="2026-10-09">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -55,12 +55,12 @@
         <header class="article-header">
           <span class="badge badge-cyan">DevOps</span>
           <h1 class="article-title">Deploy a Static Site: Netlify, GitHub Pages, and Nginx Step by Step</h1>
-          <p class="article-lead">BudhiWorks itself is a static site. Here is how I deploy the same kind of project to Netlify, GitHub Pages, or a plain Nginx box—without mystery 404s and stale caches.</p>
+          <p class="article-lead">BudhiWorks itself is a static site. This guide covers deploying the same kind of project to Netlify, GitHub Pages, or a plain Nginx box—without mystery 404s and stale caches.</p>
           <div class="article-meta">
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 7 min read &bull; ~1638 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-10-09">October 9, 2026</time> &bull; 7 min read &bull; ~1645 words
             </div>
           </div>
         </header>
@@ -80,7 +80,7 @@
         <div class="article-body article-prose">
           <h2>What “static” buys you</h2>
           <p>A static site is HTML, CSS, JS, and assets on a CDN or web server. No app server process to babysit. Deploys are file syncs. That simplicity is why blogs, docs, and marketing sites should stay static until they truly need a backend.</p>
-          <p>Your job is correct URLs, HTTPS, cache headers, and a pipeline that publishes only the intended directory. Most outages I see are wrong publish directories, missing redirects for SPA routes, or CDN caches that never expire after a bad release.</p>
+          <p>Your job is correct URLs, HTTPS, cache headers, and a pipeline that publishes only the intended directory. The most common static-site outages are wrong publish directories, missing redirects for SPA routes, and CDN caches that never expire after a bad release.</p>
           <p>Static does not mean “no pipeline.” Even hand-written HTML benefits from link checkers and HTML validators in CI before publish.</p>
 
           <h2>Option A: Netlify</h2>
@@ -109,7 +109,7 @@
     Cache-Control = &quot;public, max-age=0, must-revalidate&quot;</code></pre>
 
           <h2>Option B: GitHub Pages</h2>
-          <p>Pages can publish from a branch (often gh-pages) or from GitHub Actions. I prefer Actions: build on main, upload artifacts, deploy with the official Pages action. That keeps source and published artifacts separate.</p>
+          <p>Pages can publish from a branch (often gh-pages) or from GitHub Actions. Actions is the cleaner option: build on main, upload the artifact, deploy with the official Pages action. That keeps source and published files separate.</p>
           <p>Project sites live at username.github.io/repo/. Asset paths must respect that base. Absolute paths starting at / break on project pages. Relative paths or a configured base URL fix it.</p>
           <pre><code># .github/workflows/pages.yml
 name: Deploy Pages
@@ -136,8 +136,8 @@ jobs:
         uses: actions/deploy-pages@v4</code></pre>
 
           <h2>Option C: Nginx on a VPS</h2>
-          <p>For full control I rsync the site to /var/www/site and point Nginx at it. Certbot handles Let’s Encrypt certificates. This path costs more ops time and gives you exact cache and header behavior.</p>
-          <p>rsync with --delete prevents old articles from lingering after renames. I learned that when a deleted draft kept ranking in search because the file never left the server.</p>
+          <p>For full control, rsync the site to /var/www/site and point Nginx at it. Certbot handles Let’s Encrypt certificates. This path costs more ops time and gives you exact cache and header behavior.</p>
+          <p>rsync with --delete prevents old pages from lingering after renames or removals. Without it, a deleted draft keeps being served—and can keep ranking in search—because the file never left the server.</p>
           <p>The deploy itself runs from your machine or CI, not from the Nginx config: rsync -avz --delete ./site/ user@server:/var/www/site/</p>
           <pre><code># Redirect all HTTP to HTTPS (certbot --nginx can add this for you)
 server {
@@ -233,8 +233,8 @@ jobs:
             <li>robots.txt and sitemap.xml reachable</li>
           </ul>
 
-          <h2>Which host I choose</h2>
-          <p>Netlify or similar PaaS for speed and preview deploys. GitHub Pages for simple docs when the repo already lives on GitHub and the base path is acceptable. Nginx when I need custom headers, multiple sites on one box, or data residency constraints.</p>
+          <h2>Which host to choose</h2>
+          <p>Netlify or a similar PaaS for speed and preview deploys. GitHub Pages for simple docs when the repo already lives on GitHub and the base path is acceptable. Nginx when you need custom headers, multiple sites on one box, or data residency constraints.</p>
           <p>Start on a PaaS. Move to a VPS when you have a concrete reason. Premature Nginx is unpaid sysadmin work.</p>
 
           <h2>Custom domains and DNS gotchas</h2>
@@ -254,9 +254,9 @@ jobs:
           </ul>
 
           <h2>Headers worth setting on day one</h2>
-          <p>Besides cache policy, I set X-Content-Type-Options nosniff, a conservative Referrer-Policy, and a Content-Security-Policy that fits the site. Static blogs can use strict CSPs more easily than complex SPAs.</p>
+          <p>Besides cache policy, set X-Content-Type-Options nosniff, a conservative Referrer-Policy, and a Content-Security-Policy that fits the site. Static blogs can use strict CSPs more easily than complex SPAs.</p>
           <p>The CSP has to allow everything the page really loads, and ads load a lot. AdSense code pulls further scripts and iframes from several Google domains that change over time, so an allowlist such as script-src &#x27;self&#x27; https://pagead2.googlesyndication.com under default-src &#x27;self&#x27; blocks the ads. Google supports only a nonce-based strict CSP for AdSense, shown below. The nonce must be random on every response, so a purely static host has to inject it at the edge or in the web server; where that is not possible, leave script-src out rather than ship a policy that breaks ads. Test any policy with Content-Security-Policy-Report-Only first.</p>
-          <p>HSTS comes after you are sure HTTPS works on all subdomains you cover. Premature HSTS with includeSubDomains has locked teams out of internal HTTP tools on sibling hosts.</p>
+          <p>Turn on HSTS only after you are sure HTTPS works on every subdomain it covers. Premature HSTS with includeSubDomains can lock people out of internal HTTP-only tools on sibling hosts.</p>
           <p>Security headers do not replace careful script hygiene. They reduce blast radius when a mistake happens.</p>
           <pre><code># Strict CSP in the form Google supports for AdSense. {random} must be a fresh,
 # unguessable value per response; put the same value in nonce=&quot;...&quot; on the
@@ -272,7 +272,7 @@ X-Content-Type-Options: nosniff</code></pre>
           <p>Practice rollback once before you need it. The first bad CSS deploy at peak reading time is a poor moment to learn your host’s UI.</p>
           <p>For content sites, prefer fixing forward when the error is a typo. Prefer rollback when the error is “deleted the stylesheet” or “wrong publish folder emptied the site.”</p>
 
-          <h2>Ship checklist I reuse</h2>
+          <h2>A reusable ship checklist</h2>
           <p>Before DNS cutover: dry-run deploy on a preview URL, click three article links, validate CSS loads, confirm sitemap and robots, confirm 404 page exists.</p>
           <p>At cutover: lower TTL ahead of time if you control DNS, flip records, watch HTTPS cert issuance, purge CDN if needed, verify canonical host redirect.</p>
           <p>After cutover: spot-check Search Console or analytics for spike in 404s, keep the previous deploy ready for rollback for 24 hours, then delete stale hosts so you do not accidentally edit the wrong place next week.</p>
@@ -286,14 +286,14 @@ X-Content-Type-Options: nosniff</code></pre>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
-            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I write practical guides on Node, React/Next.js, Postgres, and the infrastructure that keeps web apps online. Every guide is checked against current official documentation, and corrections are welcome.</p>
             <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
           </div>
         </div>
       </article>
 
       <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-        <a href="vite-vs-webpack.html" class="btn btn-secondary">&larr; Vite vs Webpack in 2026: When I Pick Which…</a>
+        <a href="vite-vs-webpack.html" class="btn btn-secondary">&larr; Vite vs Webpack in 2026: How to Choose…</a>
         <a href="../start-here.html" class="btn btn-primary">Start here &rarr;</a>
       </div>
     </div>

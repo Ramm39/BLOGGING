@@ -4,19 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Core Web Vitals Guide: Practical LCP, INP, and CLS Checklist — BudhiWorks</title>
-  <meta name="description" content="Field-tested ways to improve Largest Contentful Paint, Interaction to Next Paint, and Cumulative Layout Shift with numbers from real production apps.">
+  <meta name="description" content="Practical ways to improve Largest Contentful Paint, Interaction to Next Paint, and Cumulative Layout Shift, with a checklist you can run before every release.">
   <link rel="canonical" href="https://budhiworks.com/articles/core-web-vitals-guide.html">
   <meta name="color-scheme" content="dark light">
   <meta name="author" content="Ram">
   <meta property="og:title" content="Core Web Vitals Guide: Practical LCP, INP, and CLS Checklist — BudhiWorks">
-  <meta property="og:description" content="Field-tested ways to improve Largest Contentful Paint, Interaction to Next Paint, and Cumulative Layout Shift with numbers from real production apps.">
+  <meta property="og:description" content="Practical ways to improve Largest Contentful Paint, Interaction to Next Paint, and Cumulative Layout Shift, with a checklist you can run before every release.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://budhiworks.com/articles/core-web-vitals-guide.html">
   <meta property="og:site_name" content="BudhiWorks">
   <meta name="keywords" content="Core Web Vitals, LCP, INP, CLS, web performance, fetchpriority, font-display">
   <meta property="og:type" content="article">
   <meta property="article:published_time" content="2026-08-29">
-  <meta property="article:modified_time" content="2026-09-29">
+  <meta property="article:modified_time" content="2026-10-09">
   <meta property="article:author" content="Ram">
   <link rel="stylesheet" href="../style.css">
   <script src="../script.js" defer></script>
@@ -55,12 +55,12 @@
         <header class="article-header">
           <span class="badge badge-cyan">Web Performance</span>
           <h1 class="article-title">Core Web Vitals Guide: Practical LCP, INP, and CLS Checklist</h1>
-          <p class="article-lead">I treat Core Web Vitals as a release gate, not a blog buzzword. This is the checklist we run before shipping marketing pages and authenticated dashboards.</p>
+          <p class="article-lead">Treat Core Web Vitals as a release gate, not a buzzword. This is a checklist to run before shipping marketing pages and authenticated dashboards.</p>
           <div class="article-meta">
             <div class="author-avatar">RM</div>
             <div>
               <strong>By <a href="../author.html">Ram</a></strong><br>
-              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-09-29">September 29, 2026</time> &bull; 5 min read &bull; ~1111 words
+              Published <time datetime="2026-08-29">August 29, 2026</time> &bull; Updated <time datetime="2026-10-09">October 9, 2026</time> &bull; 5 min read &bull; ~1100 words
             </div>
           </div>
         </header>
@@ -78,15 +78,15 @@
         </div>
 
         <div class="article-body article-prose">
-          <h2>Targets I actually ship against</h2>
-          <p>Google&#x27;s good thresholds are LCP at or under 2.5s, INP at or under 200ms, and CLS at or under 0.1 at the 75th percentile of field data. Lab scores from Lighthouse on a cable connection can lie. I prioritize CrUX and Search Console field data, then RUM from our own web-vitals beacons.</p>
-          <p>On a client storefront, lab LCP was 1.8s and field p75 was 3.4s because real users were on mid-range Androids over 4G. We stopped celebrating Lighthouse greens and started optimizing the hero image and TTFB.</p>
-          <p>I also split dashboards from marketing in reporting. Authenticated apps often look poor on LCP because the largest paint waits on an API. Mixing those cohorts hid a 1.1s LCP regression on the homepage for two weeks before we noticed.</p>
+          <h2>The targets that matter</h2>
+          <p>Google&#x27;s “good” thresholds are LCP at or under 2.5s, INP at or under 200ms, and CLS at or under 0.1, at the 75th percentile of field data. Lab scores from Lighthouse on a fast connection can mislead. Prioritize CrUX and Search Console field data, then RUM from your own web-vitals beacons.</p>
+          <p>Lab and field numbers often disagree sharply. A storefront can score a green lab LCP while its field p75 is well over the threshold, because real users are on mid-range Android phones over mobile networks. When that happens, stop celebrating Lighthouse and work on the hero image and TTFB.</p>
+          <p>Split dashboards from marketing pages in reporting. Authenticated apps often look poor on LCP because the largest paint waits on an API. Mixing those cohorts can hide a homepage regression for weeks.</p>
 
           <h2>LCP: make the largest element arrive early</h2>
-          <p>Find the LCP element in Performance or the Web Vitals overlay. For us it is usually a hero img, an H1 block with a web font, or a product card image. I set explicit width and height or aspect-ratio, compress to AVIF or WebP, and add fetchpriority high on the LCP image only — never on every image.</p>
-          <p>I also preload that image in head when it is not discoverable early. CSS background heroes are the worst offenders. Moving a CSS background hero to an img dropped LCP by about 900ms on one landing page.</p>
-          <p>Before and after on that page at field p75: LCP went from 3.6s to 2.4s after we cut hero weight from about 480KB JPEG to about 95KB AVIF, added preload, and stopped lazy-loading the LCP image. loading=lazy on the hero is a mistake I still catch in PRs.</p>
+          <p>Find the LCP element in the Performance panel or the Web Vitals overlay. It is usually a hero img, an H1 block with a web font, or a product card image. Set explicit width and height or aspect-ratio, compress to AVIF or WebP, and add fetchpriority=high on the LCP image only — never on every image.</p>
+          <p>Preload that image in the head when it is not discoverable early. CSS background heroes are the worst offenders, because the browser cannot find them until the CSS has loaded; moving the hero into an img element is often one of the biggest single LCP wins.</p>
+          <p>The changes compound: cutting hero weight (a large JPEG to a much smaller AVIF), adding a preload, and removing lazy-loading from the LCP image together can move field p75 from failing to passing. loading=lazy on the hero image is one of the most common mistakes in PRs.</p>
           <pre><code>&lt;!-- In &lt;head&gt; for known LCP image --&gt;
 &lt;link rel=&quot;preload&quot; as=&quot;image&quot; href=&quot;/hero.avif&quot; type=&quot;image/avif&quot; fetchpriority=&quot;high&quot; /&gt;
 
@@ -100,9 +100,9 @@
 /&gt;</code></pre>
 
           <h2>INP: keep the main thread free after clicks</h2>
-          <p>INP replaced FID. It observes every click, tap, and keypress during the visit, measures each from input until the next frame is painted, and reports roughly the worst one (ignoring rare outliers on pages with many interactions). Our worst INP came from a filters panel that re-rendered a 2,000-row table synchronously on every checkbox toggle.</p>
-          <p>Fixes that moved p75 INP from about 380ms to about 140ms: debounce expensive handlers at 150ms, virtualize long lists, break work with scheduler.postTask or requestIdleCallback for non-urgent updates, and avoid layout thrashing in event handlers. I profile with the Performance panel Interactions track, not guesses.</p>
-          <p>Another pattern that hurt us: opening a modal that synchronously parsed a large JSON blob and built a chart. Moving parse and chart construction behind startTransition in React kept the click responsive; the chart filled in a frame later. Users preferred a fast open over a frozen button.</p>
+          <p>INP replaced FID. It observes every click, tap, and keypress during the visit, measures each from input until the next frame is painted, and reports roughly the worst one (ignoring rare outliers on pages with many interactions). A typical culprit is a filters panel that re-renders a table of thousands of rows synchronously on every checkbox toggle.</p>
+          <p>Fixes that move p75 INP: debounce expensive handlers (around 150ms), virtualize long lists, break up work with scheduler.postTask or requestIdleCallback for non-urgent updates, and avoid layout thrashing in event handlers. Profile with the Performance panel’s Interactions track instead of guessing.</p>
+          <p>Another common pattern: opening a modal that synchronously parses a large JSON blob and builds a chart. Moving parse and chart construction behind startTransition in React keeps the click responsive; the chart fills in a frame later. Users prefer a fast open over a frozen button.</p>
           <pre><code>// Bad: sync filter of huge list on every keystroke
 input.addEventListener(&#x27;input&#x27;, (e) =&gt; {
   renderRows(filterAll(rows, e.target.value)); // freezes UI
@@ -119,9 +119,9 @@ const onFilter = debounce((value) =&gt; {
 input.addEventListener(&#x27;input&#x27;, (e) =&gt; onFilter(e.target.value));</code></pre>
 
           <h2>CLS: reserve space before paint</h2>
-          <p>CLS spikes when ads, late fonts, or images without dimensions shove content. I set image dimensions, use font-display optional or swap with a close fallback metric, and reserve min-height for async embeds.</p>
-          <p>A cookie banner that injected above the fold without reserved space cost us 0.18 CLS on mobile. We fixed it by rendering a 72px placeholder in the initial HTML shell. CLS fell under 0.05 within a week of field data.</p>
-          <p>Web fonts were the other villain. Swap without matched metrics caused a visible jump of the H1. We switched to a fallback with similar x-height via size-adjust and the shift became hard to notice in field data.</p>
+          <p>CLS spikes when ads, late fonts, or images without dimensions shove content around. Set image dimensions, use font-display: optional or swap with a close fallback metric, and reserve min-height for async embeds.</p>
+          <p>Cookie banners are a frequent CLS source: one injected above the fold without reserved space can push mobile CLS well past 0.1 on its own. Render a fixed-height placeholder for it in the initial HTML so nothing moves when it appears.</p>
+          <p>Web fonts are the other villain. A swap without matched metrics causes a visible jump of the H1. A fallback font with a similar x-height, tuned with size-adjust, makes the shift hard to notice.</p>
           <ul>
             <li>Always set width/height or aspect-ratio on images and video</li>
             <li>Avoid inserting DOM above existing content without a reserved slot</li>
@@ -131,8 +131,8 @@ input.addEventListener(&#x27;input&#x27;, (e) =&gt; onFilter(e.target.value));</
           </ul>
 
           <h2>Wire RUM so arguments end</h2>
-          <p>I ship the web-vitals library attribution build and POST LCP, INP, and CLS to our analytics endpoint with route name, connection type, and device class. Without attribution, LCP is bad is not actionable — you need the element and the phase such as TTFB versus resource load versus render delay.</p>
-          <p>Sample at 100 percent on low-traffic marketing sites; on high-traffic apps I sample 5 to 10 percent and still get stable p75 within a day. Alert when a route&#x27;s p75 LCP rises more than 400ms week-over-week after a deploy.</p>
+          <p>Ship the web-vitals library’s attribution build and POST LCP, INP, and CLS to your analytics endpoint with route name, connection type, and device class. Without attribution, “LCP is bad” is not actionable — you need the element and the phase, such as TTFB versus resource load versus render delay.</p>
+          <p>Sample at 100 percent on low-traffic marketing sites; on high-traffic apps, 5 to 10 percent still gives a stable p75 within a day. Alert when a route&#x27;s p75 LCP rises sharply week-over-week after a deploy.</p>
           <pre><code>import { onLCP, onINP, onCLS } from &#x27;web-vitals/attribution&#x27;;
 
 function send(metric) {
@@ -151,21 +151,21 @@ onINP(send);
 onCLS(send);</code></pre>
 
           <h2>Images beyond the hero</h2>
-          <p>Below the fold I use responsive srcset with 1x and 2x and modern formats, and I lazy-load everything that is not the LCP candidate. A product grid that eagerly loaded twelve 200KB JPEGs pushed LCP out because bandwidth contested the hero. After lazy-loading grid images, field LCP improved another roughly 350ms on 4G profiles.</p>
-          <p>I also cap decoded size. Serving a 4000px-wide asset into a 400px slot wastes memory and decode time on mobile. Our image CDN enforces max width by breakpoint. When marketing insists on a video background, I treat the poster frame as the LCP image and defer video until after load or first interaction.</p>
+          <p>Below the fold, use responsive srcset with 1x and 2x candidates and modern formats, and lazy-load everything that is not the LCP candidate. A product grid that eagerly loads a dozen large JPEGs competes with the hero for bandwidth and pushes LCP out.</p>
+          <p>Cap decoded size too. Serving a 4000px-wide asset into a 400px slot wastes memory and decode time on mobile; an image CDN can enforce max width by breakpoint. When a page insists on a video background, treat the poster frame as the LCP image and defer the video until after load or first interaction.</p>
 
           <h2>Server and cache levers that move field LCP</h2>
-          <p>Half of our LCP regressions were TTFB. Edge caching HTML for anonymous marketing pages with 30 to 60s stale-while-revalidate and keeping API origin within the same region as users mattered more than shaving 4KB of JS.</p>
-          <p>I also audit third parties. One tag manager container added 280ms to LCP on mobile. We deferred non-essential tags until after requestIdleCallback or first interaction. Measure before and after with the same RUM dashboard — screenshots of Lighthouse alone do not convince stakeholders.</p>
+          <p>Many LCP regressions are really TTFB regressions. Edge-caching HTML for anonymous marketing pages with a 30–60s stale-while-revalidate, and keeping the API origin in the same region as users, often matters more than shaving 4KB of JS.</p>
+          <p>Audit third parties. A tag-manager container can add hundreds of milliseconds to mobile LCP. Defer non-essential tags until after requestIdleCallback or first interaction, and measure before and after with the same RUM dashboard — Lighthouse screenshots alone do not convince stakeholders.</p>
 
-          <h2>Release checklist we paste into PRs</h2>
+          <h2>A release checklist to paste into PRs</h2>
           <p>Before merge on customer-facing routes: identify LCP element; confirm preload and fetchpriority; no layout shift from fonts or banners; interaction handlers under about 50ms of sync work on mid-tier CPU; bundle diff does not add a new blocking script in head.</p>
-          <p>We fail the PR if lab LCP on a throttled mobile profile jumps more than 300ms without a documented reason. That rule alone caught two accidental full-page client hydration of marketing content.</p>
-          <p>We keep a soft budget of about 170KB gzipped JS for marketing routes. Crossing the budget opens a required comment explaining the trade. That social pressure prevented two accidental charting libraries on the homepage. I paste lab LCP, INP, and CLS on Moto G throttling next to the diff so reviewers stop arguing about vibes.</p>
+          <p>Fail the PR if lab LCP on a throttled mobile profile jumps by more than a set amount (say 300ms) without a documented reason. A rule like that catches accidental full-page client hydration of marketing content.</p>
+          <p>Keep a soft JavaScript budget for marketing routes (for example around 170KB gzipped). Crossing it requires a comment explaining the trade—enough social pressure to stop a charting library from sneaking onto the homepage. Paste lab LCP, INP, and CLS on a throttled mid-range phone profile next to the diff so reviewers stop arguing about vibes.</p>
 
           <div class="info-card" style="margin-top:2rem;">
             <h3 style="margin-top:0;">About the author</h3>
-            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I build and ship production web apps — Node, React/Next.js, Postgres, and the boring infrastructure that keeps them online. BudhiWorks is where I publish the guides I wish I had when something broke at 2 a.m.</p>
+            <p><strong>Ram</strong> — Founder &amp; Editor, BudhiWorks. I write practical guides on Node, React/Next.js, Postgres, and the infrastructure that keeps web apps online. Every guide is checked against current official documentation, and corrections are welcome.</p>
             <p><a href="../author.html">More about Ram</a> · <a href="../contact.html">Contact</a></p>
           </div>
         </div>
